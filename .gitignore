@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.pins
+
+# Xcode
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+DerivedData/
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.hmap
+
+# Build artifacts
+build/
+dist/
+
+# Local environment
+.env
+
+# VS Code local
+.history/
+
+# Claude
+.claude/

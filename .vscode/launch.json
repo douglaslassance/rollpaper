@@ -1,0 +1,27 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "swift",
+      "request": "launch",
+      "name": "Debug Rollpaper",
+      "args": [],
+      "cwd": "${workspaceFolder:rollpaper}",
+      "preLaunchTask": "swift: Build Debug Rollpaper",
+      "terminal": "integrated",
+      "target": "Rollpaper",
+      "configuration": "debug"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "name": "Release Rollpaper",
+      "args": [],
+      "cwd": "${workspaceFolder:rollpaper}",
+      "preLaunchTask": "swift: Build Release Rollpaper",
+      "terminal": "integrated",
+      "target": "Rollpaper",
+      "configuration": "release"
+    }
+  ]
+}

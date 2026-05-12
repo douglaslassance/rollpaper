@@ -1,0 +1,49 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "swift: Build Debug Rollpaper",
+            "dependsOn": ["Build Swift (Debug)"],
+            "dependsOrder": "sequence",
+            "group": { "kind": "build", "isDefault": true },
+            "problemMatcher": []
+        },
+        {
+            "label": "swift: Build Release Rollpaper",
+            "dependsOn": ["Build Swift (Release)"],
+            "dependsOrder": "sequence",
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Build Swift (Debug)",
+            "type": "shell",
+            "command": "swift build -c debug",
+            "problemMatcher": [],
+            "presentation": { "reveal": "always", "panel": "shared" }
+        },
+        {
+            "label": "Build Swift (Release)",
+            "type": "shell",
+            "command": "swift build -c release",
+            "problemMatcher": [],
+            "presentation": { "reveal": "always", "panel": "shared" }
+        },
+        {
+            "label": "Clean Build",
+            "type": "shell",
+            "command": "swift package clean",
+            "group": "build",
+            "problemMatcher": [],
+            "presentation": { "reveal": "always", "panel": "shared" }
+        },
+        {
+            "label": "Run Tests",
+            "type": "shell",
+            "command": "swift test",
+            "group": "test",
+            "problemMatcher": [],
+            "presentation": { "reveal": "always", "panel": "shared" }
+        }
+    ]
+}

@@ -1,0 +1,31 @@
+disabled_rules:
+  - trailing_whitespace
+  - line_length
+  - file_length
+  - type_body_length
+  - function_body_length
+  - cyclomatic_complexity
+  - multiple_closures_with_trailing_closure
+
+opt_in_rules:
+  - empty_count
+  - empty_string
+  - explicit_init
+  - force_unwrapping
+
+excluded:
+  - .build
+  - .swiftpm
+  - Package.swift
+
+included:
+  - "*.swift"
+
+force_cast: warning
+force_try: warning
+
+identifier_name:
+  min_length: 1
+  max_length: 60
+
+reporter: "xcode"
