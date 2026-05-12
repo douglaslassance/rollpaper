@@ -20,8 +20,14 @@ final class AppState: ObservableObject {
 
     private var rotationTask: Task<Void, Never>?
 
+    /// imageURL.absoluteString → last time we set it as the wallpaper.
+    /// Used to dampen the pick weight of recently-shown images; the dampening
+    /// decays back toward 1.0 with time (see `pickWeighted`).
+    private var seenAt: [String: Date]
+
     init() {
         self.feeds = Self.loadFeeds()
+        self.seenAt = Self.loadSeenAt()
         startRotation()
     }
 
@@ -58,6 +64,7 @@ final class AppState: ObservableObject {
             currentWallpaper = pick
             currentLocalFile = newLocal
             lastError = nil
+            recordSeen(pick)
         } catch {
             lastError = error.localizedDescription
         }
@@ -106,8 +113,19 @@ final class AppState: ObservableObject {
             ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast)
         }
         let decay = 0.1
-        let weights = (0..<sorted.count).map { exp(-decay * Double($0)) }
+        // Cooldown half-life: ~20 rotations. After this much elapsed time, a
+        // previously-shown image is back to 50% of its base weight; it
+        // approaches 100% asymptotically.
+        let halfLife = max(rotationIntervalSeconds * 20, 3600)
+        let now = Date()
+        let weights: [Double] = sorted.enumerated().map { idx, item in
+            let base = exp(-decay * Double(idx))
+            return base * cooldownFactor(for: item, now: now, halfLife: halfLife)
+        }
         let total = weights.reduce(0, +)
+        // Every candidate is in deep cooldown (e.g. single-item pool just
+        // shown). Fall back to a uniform draw so we don't deadlock.
+        guard total > 0 else { return sorted.randomElement() }
         let target = Double.random(in: 0..<total)
         var acc = 0.0
         for (idx, weight) in weights.enumerated() {
@@ -117,9 +135,28 @@ final class AppState: ObservableObject {
         return sorted.last
     }
 
+    /// 1.0 if we've never shown this image; ramps from ~0 back toward 1.0
+    /// as the elapsed time since last shown crosses several half-lives.
+    private func cooldownFactor(for item: WallpaperItem, now: Date, halfLife: Double) -> Double {
+        guard let last = seenAt[item.imageURL.absoluteString] else { return 1.0 }
+        let elapsed = max(0, now.timeIntervalSince(last))
+        return 1 - pow(0.5, elapsed / halfLife)
+    }
+
+    private func recordSeen(_ item: WallpaperItem) {
+        let now = Date()
+        seenAt[item.imageURL.absoluteString] = now
+        // Prune entries that have fully recovered so the dict doesn't grow
+        // without bound. 10 half-lives → cooldown factor > 0.999.
+        let horizon = max(rotationIntervalSeconds * 20, 3600) * 10
+        seenAt = seenAt.filter { now.timeIntervalSince($0.value) < horizon }
+        persistSeenAt()
+    }
+
     // MARK: - Persistence
 
     private static let feedsKey = "feeds.v1"
+    private static let seenAtKey = "seenAt.v1"
 
     private static func loadFeeds() -> [FeedConfig] {
         guard let data = UserDefaults.standard.data(forKey: feedsKey) else { return [] }
@@ -129,5 +166,15 @@ final class AppState: ObservableObject {
     private func persistFeeds() {
         guard let data = try? JSONEncoder().encode(feeds) else { return }
         UserDefaults.standard.set(data, forKey: Self.feedsKey)
+    }
+
+    private static func loadSeenAt() -> [String: Date] {
+        guard let data = UserDefaults.standard.data(forKey: seenAtKey) else { return [:] }
+        return (try? JSONDecoder().decode([String: Date].self, from: data)) ?? [:]
+    }
+
+    private func persistSeenAt() {
+        guard let data = try? JSONEncoder().encode(seenAt) else { return }
+        UserDefaults.standard.set(data, forKey: Self.seenAtKey)
     }
 }
