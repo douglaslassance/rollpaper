@@ -40,7 +40,7 @@ struct MenuContent: View {
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
-        Button("Refresh wallpaper") {
+        Button("Next Wallpaper") {
             Task { await appState.rotateNow() }
         }
         .disabled(appState.feeds.isEmpty || appState.isRefreshing)
