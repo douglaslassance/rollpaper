@@ -25,9 +25,23 @@ final class AppState: ObservableObject {
     /// decays back toward 1.0 with time (see `pickWeighted`).
     private var seenAt: [String: Date]
 
+    /// Wallpapers the user excluded via "Don't show this again".
+    /// Ordered newest-first for the Blocked settings tab.
+    @Published private(set) var blocked: [BlockedEntry] {
+        didSet {
+            blockedURLs = Set(blocked.map(\.id))
+            persistBlocked()
+        }
+    }
+    /// Mirror of `blocked` keyed by `imageURL.absoluteString` for O(1) filtering.
+    private var blockedURLs: Set<String>
+
     init() {
         self.feeds = Self.loadFeeds()
         self.seenAt = Self.loadSeenAt()
+        let initialBlocked = Self.loadBlocked()
+        self.blocked = initialBlocked
+        self.blockedURLs = Set(initialBlocked.map(\.id))
         startRotation()
     }
 
@@ -46,8 +60,16 @@ final class AppState: ObservableObject {
                 let fetched = try await feed.fetch()
                 items.append(contentsOf: fetched)
             }
+            let fetchedCount = items.count
+            items.removeAll { blockedURLs.contains($0.imageURL.absoluteString) }
             guard let pick = pickWeighted(items) else {
-                lastError = feeds.isEmpty ? "No feeds configured" : "No images in feeds"
+                if feeds.isEmpty {
+                    lastError = "No feeds configured"
+                } else if fetchedCount > 0 {
+                    lastError = "All current feed items are blocked"
+                } else {
+                    lastError = "No images in feeds"
+                }
                 return
             }
             let newLocal = try await WallpaperManager.shared.download(pick.imageURL)
@@ -89,6 +111,30 @@ final class AppState: ObservableObject {
     func openCurrentWallpaperSource() {
         guard let url = currentWallpaper?.sourceURL else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    /// Add the current wallpaper to the blocklist and immediately rotate to a
+    /// new one. If a rotation is already in flight, the guard in `rotateNow`
+    /// will skip; the blocked image is still excluded from future picks.
+    func blockCurrentWallpaper() {
+        guard let item = currentWallpaper else { return }
+        let key = item.imageURL.absoluteString
+        guard !blockedURLs.contains(key) else { return }
+        let entry = BlockedEntry(
+            imageURL: item.imageURL,
+            sourceURL: item.sourceURL,
+            addedAt: Date()
+        )
+        blocked.insert(entry, at: 0)
+        Task { await rotateNow() }
+    }
+
+    func unblock(_ entry: BlockedEntry) {
+        blocked.removeAll { $0.id == entry.id }
+    }
+
+    func clearBlocked() {
+        blocked.removeAll()
     }
 
     func restartRotation() {
@@ -161,6 +207,7 @@ final class AppState: ObservableObject {
 
     private static let feedsKey = "feeds.v1"
     private static let seenAtKey = "seenAt.v1"
+    private static let blockedKey = "blocked.v1"
 
     private static func loadFeeds() -> [FeedConfig] {
         guard let data = UserDefaults.standard.data(forKey: feedsKey) else { return [] }
@@ -180,5 +227,15 @@ final class AppState: ObservableObject {
     private func persistSeenAt() {
         guard let data = try? JSONEncoder().encode(seenAt) else { return }
         UserDefaults.standard.set(data, forKey: Self.seenAtKey)
+    }
+
+    private static func loadBlocked() -> [BlockedEntry] {
+        guard let data = UserDefaults.standard.data(forKey: blockedKey) else { return [] }
+        return (try? JSONDecoder().decode([BlockedEntry].self, from: data)) ?? []
+    }
+
+    private func persistBlocked() {
+        guard let data = try? JSONEncoder().encode(blocked) else { return }
+        UserDefaults.standard.set(data, forKey: Self.blockedKey)
     }
 }

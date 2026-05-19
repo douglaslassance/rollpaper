@@ -7,6 +7,16 @@ struct WallpaperItem: Equatable, Hashable, Codable, Sendable {
     let createdAt: Date?
 }
 
+/// A wallpaper the user explicitly excluded via "Don't show this again".
+/// Persisted across launches; reviewed in the Blocked settings tab.
+struct BlockedEntry: Codable, Hashable, Identifiable, Sendable {
+    let imageURL: URL
+    let sourceURL: URL?
+    let addedAt: Date
+
+    var id: String { imageURL.absoluteString }
+}
+
 enum FeedKind: String, Codable, CaseIterable, Sendable {
     case bluesky
     case mastodon

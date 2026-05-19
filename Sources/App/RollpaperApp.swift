@@ -57,6 +57,11 @@ struct MenuContent: View {
         }
         .disabled(appState.currentWallpaper?.sourceURL == nil)
 
+        Button("Don't show this again") {
+            appState.blockCurrentWallpaper()
+        }
+        .disabled(appState.currentWallpaper == nil)
+
         Divider()
 
         Toggle("Launch at Login", isOn: Binding(

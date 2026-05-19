@@ -10,6 +10,9 @@ struct SettingsView: View {
 
             FeedsSettingsView()
                 .tabItem { Label("Feeds", systemImage: "list.bullet") }
+
+            BlockedSettingsView()
+                .tabItem { Label("Blocked", systemImage: "nosign") }
         }
         .frame(width: 520, height: 360)
     }
@@ -113,6 +116,95 @@ struct AddFeedView: View {
         }
         .padding(20)
         .frame(width: 380)
+    }
+}
+
+struct BlockedSettingsView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var selection: BlockedEntry.ID?
+    @State private var showClearConfirm = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if appState.blocked.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "nosign")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.secondary)
+                    Text("No blocked wallpapers")
+                        .font(.headline)
+                    Text("Use \"Don't show this again\" from the menu bar to block a wallpaper.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 320)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(selection: $selection) {
+                    ForEach(appState.blocked) { entry in
+                        BlockedRow(entry: entry)
+                            .tag(entry.id)
+                    }
+                }
+            }
+            Divider()
+            HStack {
+                Button {
+                    if let id = selection,
+                       let entry = appState.blocked.first(where: { $0.id == id }) {
+                        appState.unblock(entry)
+                        selection = nil
+                    }
+                } label: {
+                    Image(systemName: "minus")
+                }
+                .disabled(selection == nil)
+
+                Spacer()
+
+                Button("Clear All") {
+                    showClearConfirm = true
+                }
+                .disabled(appState.blocked.isEmpty)
+            }
+            .padding(8)
+            .buttonStyle(.borderless)
+        }
+        .confirmationDialog(
+            "Remove all \(appState.blocked.count) blocked wallpapers?",
+            isPresented: $showClearConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Clear All", role: .destructive) {
+                appState.clearBlocked()
+                selection = nil
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+}
+
+private struct BlockedRow: View {
+    let entry: BlockedEntry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if let source = entry.sourceURL {
+                Link(source.absoluteString, destination: source)
+                    .font(.body)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            } else {
+                Text(entry.imageURL.lastPathComponent)
+                    .font(.body)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Text("Blocked \(entry.addedAt.formatted(date: .abbreviated, time: .shortened))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 }
 
