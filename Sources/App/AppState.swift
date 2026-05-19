@@ -15,8 +15,6 @@ final class AppState: ObservableObject {
 
     @AppStorage("rotationIntervalSeconds") var rotationIntervalSeconds: Double = 3600
     @AppStorage("fitMode") var fitMode: FitMode = .fill
-    @AppStorage("fadeEnabled") var fadeEnabled: Bool = true
-    @AppStorage("fadeDurationSeconds") var fadeDurationSeconds: Double = 0.6
 
     private var rotationTask: Task<Void, Never>?
 
@@ -73,15 +71,7 @@ final class AppState: ObservableObject {
                 return
             }
             let newLocal = try await WallpaperManager.shared.download(pick.imageURL)
-            let previousLocal = currentLocalFile
-
-            if fadeEnabled, let previousLocal {
-                WallpaperFader.shared.showOverlay(imageFile: previousLocal, fitMode: fitMode)
-                try WallpaperManager.shared.setDesktopImage(newLocal, fitMode: fitMode)
-                await WallpaperFader.shared.fadeOutAndRemove(duration: fadeDurationSeconds)
-            } else {
-                try WallpaperManager.shared.setDesktopImage(newLocal, fitMode: fitMode)
-            }
+            try WallpaperManager.shared.setDesktopImage(newLocal, fitMode: fitMode)
 
             currentWallpaper = pick
             currentLocalFile = newLocal

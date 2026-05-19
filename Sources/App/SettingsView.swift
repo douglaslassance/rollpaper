@@ -241,18 +241,6 @@ struct GeneralSettingsView: View {
                 .onChange(of: appState.fitMode) { _, _ in
                     appState.applyFitModeToCurrent()
                 }
-
-                Toggle("Fade transition", isOn: $appState.fadeEnabled)
-
-                if appState.fadeEnabled {
-                    HStack {
-                        Text("Fade duration")
-                        Slider(value: $appState.fadeDurationSeconds, in: 0.2...2.0)
-                        Text("\(appState.fadeDurationSeconds, specifier: "%.1f")s")
-                            .monospacedDigit()
-                            .frame(width: 40, alignment: .trailing)
-                    }
-                }
             }
 
             if let error = appState.lastError {
