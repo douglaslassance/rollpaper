@@ -112,7 +112,11 @@ final class AppState: ObservableObject {
         let sorted = items.sorted {
             ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast)
         }
-        let decay = 0.1
+        // Scale recency decay to pool size so the oldest item retains ~e^-2.5
+        // (~0.08) of the newest's base weight regardless of feed length. That
+        // keeps it reachable once recent items fall into cooldown, but still
+        // strongly biases new posts when nothing has been shown.
+        let decay = 2.5 / Double(max(sorted.count - 1, 1))
         // Cooldown half-life: ~20 rotations. After this much elapsed time, a
         // previously-shown image is back to 50% of its base weight; it
         // approaches 100% asymptotically.
