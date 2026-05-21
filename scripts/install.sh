@@ -41,6 +41,13 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_SRC" "$APP/Contents/MacOS/$APP_NAME"
 chmod +x "$APP/Contents/MacOS/$APP_NAME"
 
+ICON_SRC="assets/Rollpaper.icns"
+if [[ -f "$ICON_SRC" ]]; then
+    cp "$ICON_SRC" "$APP/Contents/Resources/Rollpaper.icns"
+else
+    echo "Warning: $ICON_SRC missing; run scripts/make-icon.swift to regenerate" >&2
+fi
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -50,6 +57,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <string>en</string>
     <key>CFBundleExecutable</key>
     <string>$APP_NAME</string>
+    <key>CFBundleIconFile</key>
+    <string>Rollpaper</string>
     <key>CFBundleIdentifier</key>
     <string>$BUNDLE_ID</string>
     <key>CFBundleInfoDictionaryVersion</key>

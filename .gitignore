@@ -20,6 +20,9 @@ DerivedData/
 build/
 dist/
 
+# Icon generator intermediates (the .icns is committed)
+assets/Rollpaper.iconset/
+
 # Local environment
 .env
 
