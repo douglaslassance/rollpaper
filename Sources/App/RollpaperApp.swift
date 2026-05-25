@@ -77,6 +77,13 @@ struct MenuContent: View {
         }
         .keyboardShortcut(",")
 
+        #if !APPSTORE_BUILD && !DEBUG
+        CheckForUpdatesView(
+            viewModel: CheckForUpdatesViewModel(updater: SparkleHost.controller.updater),
+            updater: SparkleHost.controller.updater
+        )
+        #endif
+
         Divider()
 
         Button("Quit Rollpaper") {
