@@ -19,7 +19,7 @@ target_triple = "aarch64-apple-darwin"
 swift_target  = "App"
 icon_command  = "cp assets/Rollpaper.icns build/AppIcon.icns"
 
-[r2]
+[s3]
 bucket_prefix         = "rollpaper"
 appcast_filename      = "rollpaper.xml"
 download_url_template = "https://api.douglaslassance.me/rollpaper/download/{version}/{target}"
