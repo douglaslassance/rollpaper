@@ -1,0 +1,34 @@
+# Release configuration consumed by ../trigger.
+# Schema: trigger/templates/trigger.toml.example
+
+[app]
+name        = "Rollpaper"
+slug        = "rollpaper"
+bundle_id   = "me.douglaslassance.Rollpaper"
+team_id     = "556XHQJK3G"
+developer   = "Douglas Lassance"
+homepage    = "https://github.com/douglaslassance/rollpaper"
+description = "Menu-bar wallpaper rotator"  # TODO: confirm description
+category    = "public.app-category.lifestyle"  # TODO: confirm category
+min_macos   = "14.0"
+
+[build]
+kind          = "swift"
+arch          = "arm64"
+target_triple = "aarch64-apple-darwin"
+swift_target  = "App"
+icon_command  = "cp assets/Rollpaper.icns build/AppIcon.icns"
+
+[r2]
+bucket_prefix         = "rollpaper"
+appcast_filename      = "rollpaper.xml"
+download_url_template = "https://api.douglaslassance.me/rollpaper/download/{version}/{target}"
+
+[homebrew]
+cask_name = "rollpaper"
+
+[appstore]
+non_exempt_encryption = false
+
+[plist.extras]
+LSUIElement = true   # menu-bar app, no Dock icon
