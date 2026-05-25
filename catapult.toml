@@ -19,6 +19,9 @@ target_triple = "aarch64-apple-darwin"
 swift_target  = "App"
 icon_command  = "cp assets/Rollpaper.icns build/AppIcon.icns"
 
+[sparkle]
+feed_url = "https://storage.douglaslassance.me/rollpaper/rollpaper.xml"
+
 [s3]
 bucket_prefix         = "rollpaper"
 appcast_filename      = "rollpaper.xml"
