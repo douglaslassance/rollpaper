@@ -20,7 +20,7 @@ swift_target  = "App"
 icon_command  = "cp assets/Rollpaper.icns build/AppIcon.icns"
 
 [sparkle]
-feed_url = "https://storage.douglaslassance.me/rollpaper/rollpaper.xml"
+feed_url = "https://s3.douglaslassance.me/rollpaper/rollpaper.xml"
 
 [s3]
 bucket_prefix         = "rollpaper"
@@ -35,4 +35,3 @@ non_exempt_encryption = false
 
 [plist.extras]
 LSUIElement = true   # menu-bar app, no Dock icon
-NSAppleEventsUsageDescription = "Rollpaper triggers Show Desktop by sending a keystroke through System Events."
