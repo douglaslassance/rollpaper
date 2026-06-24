@@ -35,3 +35,4 @@ non_exempt_encryption = false
 
 [plist.extras]
 LSUIElement = true   # menu-bar app, no Dock icon
+NSAppleEventsUsageDescription = "Rollpaper triggers Show Desktop by sending a keystroke through System Events."

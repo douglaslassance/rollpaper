@@ -24,22 +24,22 @@ final class AppState: ObservableObject {
     private var seenAt: [String: Date]
 
     /// Wallpapers the user excluded via "Don't show this again".
-    /// Ordered newest-first for the Blocked settings tab.
-    @Published private(set) var blocked: [BlockedEntry] {
+    /// Ordered newest-first for the Filtered settings tab.
+    @Published private(set) var filtered: [FilteredEntry] {
         didSet {
-            blockedURLs = Set(blocked.map(\.id))
-            persistBlocked()
+            filteredURLs = Set(filtered.map(\.id))
+            persistFiltered()
         }
     }
-    /// Mirror of `blocked` keyed by `imageURL.absoluteString` for O(1) filtering.
-    private var blockedURLs: Set<String>
+    /// Mirror of `filtered` keyed by `imageURL.absoluteString` for O(1) filtering.
+    private var filteredURLs: Set<String>
 
     init() {
         self.feeds = Self.loadFeeds()
         self.seenAt = Self.loadSeenAt()
-        let initialBlocked = Self.loadBlocked()
-        self.blocked = initialBlocked
-        self.blockedURLs = Set(initialBlocked.map(\.id))
+        let initialFiltered = Self.loadFiltered()
+        self.filtered = initialFiltered
+        self.filteredURLs = Set(initialFiltered.map(\.id))
         startRotation()
     }
 
@@ -59,12 +59,12 @@ final class AppState: ObservableObject {
                 items.append(contentsOf: fetched)
             }
             let fetchedCount = items.count
-            items.removeAll { blockedURLs.contains($0.imageURL.absoluteString) }
+            items.removeAll { filteredURLs.contains($0.imageURL.absoluteString) }
             guard let pick = pickWeighted(items) else {
                 if feeds.isEmpty {
                     lastError = "No feeds configured"
                 } else if fetchedCount > 0 {
-                    lastError = "All current feed items are blocked"
+                    lastError = "All current feed items are filtered out"
                 } else {
                     lastError = "No images in feeds"
                 }
@@ -103,28 +103,28 @@ final class AppState: ObservableObject {
         NSWorkspace.shared.open(url)
     }
 
-    /// Add the current wallpaper to the blocklist and immediately rotate to a
-    /// new one. If a rotation is already in flight, the guard in `rotateNow`
-    /// will skip; the blocked image is still excluded from future picks.
-    func blockCurrentWallpaper() {
+    /// Add the current wallpaper to the filter list and immediately rotate to
+    /// a new one. If a rotation is already in flight, the guard in `rotateNow`
+    /// will skip; the filtered image is still excluded from future picks.
+    func filterCurrentWallpaper() {
         guard let item = currentWallpaper else { return }
         let key = item.imageURL.absoluteString
-        guard !blockedURLs.contains(key) else { return }
-        let entry = BlockedEntry(
+        guard !filteredURLs.contains(key) else { return }
+        let entry = FilteredEntry(
             imageURL: item.imageURL,
             sourceURL: item.sourceURL,
             addedAt: Date()
         )
-        blocked.insert(entry, at: 0)
+        filtered.insert(entry, at: 0)
         Task { await rotateNow() }
     }
 
-    func unblock(_ entry: BlockedEntry) {
-        blocked.removeAll { $0.id == entry.id }
+    func unfilter(_ entry: FilteredEntry) {
+        filtered.removeAll { $0.id == entry.id }
     }
 
-    func clearBlocked() {
-        blocked.removeAll()
+    func clearFiltered() {
+        filtered.removeAll()
     }
 
     func restartRotation() {
@@ -197,7 +197,8 @@ final class AppState: ObservableObject {
 
     private static let feedsKey = "feeds.v1"
     private static let seenAtKey = "seenAt.v1"
-    private static let blockedKey = "blocked.v1"
+    // Persisted key kept as "blocked.v1" so existing user data still loads.
+    private static let filteredKey = "blocked.v1"
 
     private static func loadFeeds() -> [FeedConfig] {
         guard let data = UserDefaults.standard.data(forKey: feedsKey) else { return [] }
@@ -219,13 +220,13 @@ final class AppState: ObservableObject {
         UserDefaults.standard.set(data, forKey: Self.seenAtKey)
     }
 
-    private static func loadBlocked() -> [BlockedEntry] {
-        guard let data = UserDefaults.standard.data(forKey: blockedKey) else { return [] }
-        return (try? JSONDecoder().decode([BlockedEntry].self, from: data)) ?? []
+    private static func loadFiltered() -> [FilteredEntry] {
+        guard let data = UserDefaults.standard.data(forKey: filteredKey) else { return [] }
+        return (try? JSONDecoder().decode([FilteredEntry].self, from: data)) ?? []
     }
 
-    private func persistBlocked() {
-        guard let data = try? JSONEncoder().encode(blocked) else { return }
-        UserDefaults.standard.set(data, forKey: Self.blockedKey)
+    private func persistFiltered() {
+        guard let data = try? JSONEncoder().encode(filtered) else { return }
+        UserDefaults.standard.set(data, forKey: Self.filteredKey)
     }
 }

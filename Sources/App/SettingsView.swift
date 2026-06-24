@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
+    @ObservedObject private var entitlements = EntitlementManager.shared
 
     var body: some View {
         TabView {
@@ -11,8 +12,10 @@ struct SettingsView: View {
             FeedsSettingsView()
                 .tabItem { Label("Feeds", systemImage: "list.bullet") }
 
-            BlockedSettingsView()
-                .tabItem { Label("Blocked", systemImage: "nosign") }
+            if entitlements.hasProAccess {
+                FilteredSettingsView()
+                    .tabItem { Label("Filtered", systemImage: "line.3.horizontal.decrease.circle") }
+            }
         }
         .frame(width: 520, height: 360)
     }
@@ -20,8 +23,13 @@ struct SettingsView: View {
 
 struct FeedsSettingsView: View {
     @EnvironmentObject private var appState: AppState
+    @ObservedObject private var entitlements = EntitlementManager.shared
     @State private var selection: FeedConfig.ID?
     @State private var showAddSheet = false
+
+    private var atFreeLimit: Bool {
+        !entitlements.hasProAccess && appState.feeds.count >= AppLimits.freeMaxFeeds
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -37,7 +45,11 @@ struct FeedsSettingsView: View {
             Divider()
             HStack {
                 Button {
-                    showAddSheet = true
+                    if atFreeLimit {
+                        PurchaseWindowController.shared.show(entitlementManager: entitlements)
+                    } else {
+                        showAddSheet = true
+                    }
                 } label: {
                     Image(systemName: "plus")
                 }
@@ -119,21 +131,21 @@ struct AddFeedView: View {
     }
 }
 
-struct BlockedSettingsView: View {
+struct FilteredSettingsView: View {
     @EnvironmentObject private var appState: AppState
-    @State private var selection: BlockedEntry.ID?
+    @State private var selection: FilteredEntry.ID?
     @State private var showClearConfirm = false
 
     var body: some View {
         VStack(spacing: 0) {
-            if appState.blocked.isEmpty {
+            if appState.filtered.isEmpty {
                 VStack(spacing: 8) {
-                    Image(systemName: "nosign")
+                    Image(systemName: "line.3.horizontal.decrease.circle")
                         .font(.system(size: 32))
                         .foregroundStyle(.secondary)
-                    Text("No blocked wallpapers")
+                    Text("No filtered wallpapers")
                         .font(.headline)
-                    Text("Use \"Don't show this again\" from the menu bar to block a wallpaper.")
+                    Text("Use \"Don't show this again\" from the menu bar to filter a wallpaper out.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -142,8 +154,8 @@ struct BlockedSettingsView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(selection: $selection) {
-                    ForEach(appState.blocked) { entry in
-                        BlockedRow(entry: entry)
+                    ForEach(appState.filtered) { entry in
+                        FilteredRow(entry: entry)
                             .tag(entry.id)
                     }
                 }
@@ -152,8 +164,8 @@ struct BlockedSettingsView: View {
             HStack {
                 Button {
                     if let id = selection,
-                       let entry = appState.blocked.first(where: { $0.id == id }) {
-                        appState.unblock(entry)
+                       let entry = appState.filtered.first(where: { $0.id == id }) {
+                        appState.unfilter(entry)
                         selection = nil
                     }
                 } label: {
@@ -166,18 +178,18 @@ struct BlockedSettingsView: View {
                 Button("Clear All") {
                     showClearConfirm = true
                 }
-                .disabled(appState.blocked.isEmpty)
+                .disabled(appState.filtered.isEmpty)
             }
             .padding(8)
             .buttonStyle(.borderless)
         }
         .confirmationDialog(
-            "Remove all \(appState.blocked.count) blocked wallpapers?",
+            "Remove all \(appState.filtered.count) filtered wallpapers?",
             isPresented: $showClearConfirm,
             titleVisibility: .visible
         ) {
             Button("Clear All", role: .destructive) {
-                appState.clearBlocked()
+                appState.clearFiltered()
                 selection = nil
             }
             Button("Cancel", role: .cancel) {}
@@ -185,8 +197,8 @@ struct BlockedSettingsView: View {
     }
 }
 
-private struct BlockedRow: View {
-    let entry: BlockedEntry
+private struct FilteredRow: View {
+    let entry: FilteredEntry
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -201,7 +213,7 @@ private struct BlockedRow: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
-            Text("Blocked \(entry.addedAt.formatted(date: .abbreviated, time: .shortened))")
+            Text("Filtered \(entry.addedAt.formatted(date: .abbreviated, time: .shortened))")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

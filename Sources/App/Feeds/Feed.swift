@@ -8,8 +8,8 @@ struct WallpaperItem: Equatable, Hashable, Codable, Sendable {
 }
 
 /// A wallpaper the user explicitly excluded via "Don't show this again".
-/// Persisted across launches; reviewed in the Blocked settings tab.
-struct BlockedEntry: Codable, Hashable, Identifiable, Sendable {
+/// Persisted across launches; reviewed in the Filtered settings tab.
+struct FilteredEntry: Codable, Hashable, Identifiable, Sendable {
     let imageURL: URL
     let sourceURL: URL?
     let addedAt: Date

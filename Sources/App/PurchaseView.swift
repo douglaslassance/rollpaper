@@ -1,0 +1,147 @@
+import SwiftUI
+
+struct PurchaseView: View {
+    @ObservedObject var entitlementManager: EntitlementManager
+    @Environment(\.dismiss) var dismiss
+    @State private var licenseKey = ""
+    @State private var showAlert = false
+    @State private var alertMessage = ""
+
+    var body: some View {
+        VStack(spacing: 20) {
+            VStack(spacing: 12) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 48))
+                    .foregroundColor(.accentColor)
+
+                Text("Upgrade to Rollpaper")
+                    .font(.system(size: 24, weight: .bold))
+                    .overlay(alignment: .topTrailing) {
+                        Text("PRO")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Color.accentColor)
+                            .cornerRadius(3)
+                            .offset(x: 32, y: 1)
+                    }
+            }
+            .padding(.top, 28)
+
+            Divider()
+                .padding(.horizontal, 32)
+
+            VStack(alignment: .leading, spacing: 12) {
+                FeatureRow(icon: Image(systemName: "infinity"), text: "Add unlimited feeds")
+                FeatureRow(icon: Image(systemName: "line.3.horizontal.decrease.circle"), text: "Filter out wallpapers you don't like")
+                FeatureRow(icon: Image(systemName: "heart.fill"), text: "Support independent development")
+            }
+            .padding(.horizontal, 40)
+
+            Divider()
+                .padding(.horizontal, 32)
+
+            VStack(spacing: 12) {
+                #if APPSTORE_BUILD
+                Button(action: {
+                    Task {
+                        do {
+                            try await entitlementManager.purchasePro()
+                            dismiss()
+                        } catch {
+                            alertMessage = error.localizedDescription
+                            showAlert = true
+                        }
+                    }
+                }) {
+                    HStack {
+                        Text("Upgrade to Pro")
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Text("$4.99")
+                            .fontWeight(.bold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.accentColor)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
+                .disabled(entitlementManager.isLoading)
+
+                Button("Restore Purchases") {
+                    Task {
+                        await entitlementManager.restorePurchases()
+                        if entitlementManager.hasProAccess {
+                            dismiss()
+                        } else {
+                            alertMessage = "No previous purchases found"
+                            showAlert = true
+                        }
+                    }
+                }
+                .disabled(entitlementManager.isLoading)
+                #else
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Enter your license key:")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+
+                    TextField("XXXXXXXX-XXXXXXXX-XXXXXXXX-XXXXXXXX", text: $licenseKey)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .textCase(.uppercase)
+
+                    Button("Activate License") {
+                        Task {
+                            if await entitlementManager.activateLicenseKey(licenseKey) {
+                                dismiss()
+                            } else {
+                                alertMessage = entitlementManager.errorMessage ?? "Invalid license key"
+                                showAlert = true
+                            }
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .frame(maxWidth: .infinity)
+                    .disabled(licenseKey.isEmpty)
+                }
+
+                Link("Purchase a license key", destination: URL(string: "https://douglaslassance.gumroad.com/l/rollpaper")!)
+                    .font(.subheadline)
+                    .foregroundColor(.accentColor)
+                #endif
+            }
+            .padding(.horizontal, 32)
+            .padding(.bottom, 24)
+        }
+        .frame(width: 400, height: 380)
+        .alert("Notice", isPresented: $showAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(alertMessage)
+        }
+    }
+}
+
+private struct FeatureRow: View {
+    let icon: Image
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            icon
+                .font(.body)
+                .foregroundColor(.accentColor)
+                .frame(width: 20)
+
+            Text(text)
+                .font(.body)
+
+            Spacer()
+        }
+    }
+}
