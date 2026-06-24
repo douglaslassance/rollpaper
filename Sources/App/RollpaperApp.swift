@@ -71,10 +71,6 @@ struct MenuContent: View {
         }
         .disabled(appState.feeds.isEmpty || appState.isRefreshing)
 
-        Button("Show Desktop") {
-            ShowDesktop.trigger()
-        }
-
         Divider()
 
         Button("Download current wallpaper…") {
