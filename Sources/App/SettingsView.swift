@@ -222,6 +222,7 @@ private struct FilteredRow: View {
 
 struct GeneralSettingsView: View {
     @EnvironmentObject private var appState: AppState
+    @ObservedObject private var entitlements = EntitlementManager.shared
 
     private let intervalPresets: [(String, Double)] = [
         ("Every minute", 60),
@@ -253,6 +254,24 @@ struct GeneralSettingsView: View {
                 .onChange(of: appState.fitMode) { _, _ in
                     appState.applyFitModeToCurrent()
                 }
+            }
+
+            Section("Upscaling") {
+                Toggle("Upscale wallpapers to fit your display", isOn: Binding(
+                    get: { entitlements.hasProAccess && appState.upscaleEnabled },
+                    set: { newValue in
+                        if entitlements.hasProAccess {
+                            appState.upscaleEnabled = newValue
+                        } else {
+                            PurchaseWindowController.shared.show(entitlementManager: entitlements)
+                        }
+                    }
+                ))
+                Text(entitlements.hasProAccess
+                     ? "Enlarges images smaller than your screen with on-device AI, applied on each rotation."
+                     : "Enlarges images smaller than your screen with on-device AI. Requires Rollpaper Pro.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             if let error = appState.lastError {

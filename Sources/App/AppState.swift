@@ -15,6 +15,9 @@ final class AppState: ObservableObject {
 
     @AppStorage("rotationIntervalSeconds") var rotationIntervalSeconds: Double = 3600
     @AppStorage("fitMode") var fitMode: FitMode = .fill
+    /// Pro-only: upscale each wallpaper toward the display resolution with
+    /// MetalFX before setting it. Gated at use-time on `hasProAccess`.
+    @AppStorage("upscaleEnabled") var upscaleEnabled: Bool = false
 
     private var rotationTask: Task<Void, Never>?
 
@@ -71,10 +74,17 @@ final class AppState: ObservableObject {
                 return
             }
             let newLocal = try await WallpaperManager.shared.download(pick.imageURL)
-            try WallpaperManager.shared.setDesktopImage(newLocal, fitMode: fitMode)
+            let fileToSet: URL
+            if upscaleEnabled && EntitlementManager.shared.hasProAccess {
+                fileToSet = await WallpaperManager.shared.upscaledIfBeneficial(newLocal)
+            } else {
+                fileToSet = newLocal
+            }
+            try WallpaperManager.shared.setDesktopImage(fileToSet, fitMode: fitMode)
+            WallpaperManager.shared.pruneCache(keeping: fileToSet)
 
             currentWallpaper = pick
-            currentLocalFile = newLocal
+            currentLocalFile = fileToSet
             lastError = nil
             recordSeen(pick)
         } catch {

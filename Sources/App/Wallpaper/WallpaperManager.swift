@@ -24,6 +24,43 @@ final class WallpaperManager {
         return local
     }
 
+    /// Upscales `localFile` toward the largest attached display's pixel
+    /// resolution with the on-device AI model, returning the upscaled file.
+    /// Best-effort: falls back to the original when the image already suits the
+    /// display or the pass fails, so it never blocks a rotation.
+    func upscaledIfBeneficial(_ localFile: URL) async -> URL {
+        let target = largestScreenPixelSize()
+        let directory = cacheURL
+        do {
+            return try await Task.detached(priority: .userInitiated) {
+                try CoreMLUpscaler.upscale(imageAt: localFile, toFill: target, outputDirectory: directory)
+            }.value
+        } catch {
+            return localFile
+        }
+    }
+
+    /// Deletes every cached file except `keep`, so the cache holds roughly the
+    /// current wallpaper rather than growing without bound (the AI-upscaled
+    /// files are large). Only the currently-set wallpaper needs to stay on disk.
+    func pruneCache(keeping keep: URL) {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(at: cacheURL, includingPropertiesForKeys: nil) else { return }
+        let keepPath = keep.standardizedFileURL.path
+        for entry in entries where entry.standardizedFileURL.path != keepPath {
+            try? fm.removeItem(at: entry)
+        }
+    }
+
+    private func largestScreenPixelSize() -> CGSize {
+        let sizes = NSScreen.screens.map { screen -> CGSize in
+            CGSize(width: screen.frame.width * screen.backingScaleFactor,
+                   height: screen.frame.height * screen.backingScaleFactor)
+        }
+        return sizes.max { $0.width * $0.height < $1.width * $1.height }
+            ?? CGSize(width: 3840, height: 2160)
+    }
+
     func setDesktopImage(_ localFile: URL, fitMode: FitMode) throws {
         let options: [NSWorkspace.DesktopImageOptionKey: Any] = [
             .imageScaling: NSNumber(value: fitMode.imageScaling.rawValue),
