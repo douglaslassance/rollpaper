@@ -1,8 +1,8 @@
+import AppKit
 import SwiftUI
 
 struct AboutView: View {
     @EnvironmentObject var entitlementManager: EntitlementManager
-    @State private var showFeedbackForm = false
 
     var currentVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
@@ -40,7 +40,7 @@ struct AboutView: View {
             }
 
             Button(action: {
-                showFeedbackForm = true
+                NSWorkspace.shared.open(URL(string: "https://douglaslassance.me/contact")!)
             }) {
                 Label("Contact", systemImage: "envelope")
             }
@@ -76,8 +76,5 @@ struct AboutView: View {
         }
         .padding(30)
         .frame(width: 320, height: 340)
-        .sheet(isPresented: $showFeedbackForm) {
-            ContactFormView()
-        }
     }
 }
