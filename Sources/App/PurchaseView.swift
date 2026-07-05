@@ -23,6 +23,7 @@ struct PurchaseView: View {
             VStack(alignment: .leading, spacing: 12) {
                 FeatureRow(icon: Image(systemName: "infinity"), text: "Add unlimited feeds")
                 FeatureRow(icon: Image(systemName: "line.3.horizontal.decrease.circle"), text: "Filter out wallpapers you don't like")
+                FeatureRow(icon: Image(systemName: "wand.and.stars"), text: "Upscale low resolution content")
                 FeatureRow(icon: Image(systemName: "heart.fill"), text: "Support independent development")
             }
             .padding(.horizontal, 44)
