@@ -13,25 +13,11 @@ struct AboutView: View {
             Spacer()
 
             VStack(spacing: 6) {
-                Image(nsImage: NSApp.applicationIconImage)
-                    .resizable()
-                    .frame(width: 162, height: 162)
+                ProAppIcon(size: 162, showBadge: entitlementManager.hasProAccess)
                     .offset(y: -2)
-                    .overlay(alignment: .bottom) {
-                        if entitlementManager.hasProAccess {
-                            Text("Pro")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 2)
-                                .background(Color.accentColor)
-                                .cornerRadius(4)
-                                .offset(y: -8)
-                        }
-                    }
 
                 VStack(spacing: 4) {
-                    Text(entitlementManager.hasProAccess ? "Rollpaper Pro" : "Rollpaper")
+                    Text("Rollpaper")
                         .font(.system(size: 24, weight: .bold))
 
                     Text("Version \(currentVersion)")

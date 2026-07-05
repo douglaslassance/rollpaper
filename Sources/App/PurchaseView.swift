@@ -10,27 +10,25 @@ struct PurchaseView: View {
     var body: some View {
         VStack(spacing: 20) {
             VStack(spacing: 12) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 48))
-                    .foregroundColor(.accentColor)
+                ProAppIcon(size: 122, showBadge: true)
 
-                Text("Upgrade to Rollpaper Pro")
+                Text("Upgrade to Pro")
                     .font(.system(size: 24, weight: .bold))
             }
-            .padding(.top, 28)
+            .padding(.top, 40)
 
             Divider()
-                .padding(.horizontal, 32)
+                .padding(.horizontal, 36)
 
             VStack(alignment: .leading, spacing: 12) {
                 FeatureRow(icon: Image(systemName: "infinity"), text: "Add unlimited feeds")
                 FeatureRow(icon: Image(systemName: "line.3.horizontal.decrease.circle"), text: "Filter out wallpapers you don't like")
                 FeatureRow(icon: Image(systemName: "heart.fill"), text: "Support independent development")
             }
-            .padding(.horizontal, 40)
+            .padding(.horizontal, 44)
 
             Divider()
-                .padding(.horizontal, 32)
+                .padding(.horizontal, 36)
 
             VStack(spacing: 12) {
                 #if APPSTORE_BUILD
@@ -105,10 +103,10 @@ struct PurchaseView: View {
                     .foregroundColor(.accentColor)
                 #endif
             }
-            .padding(.horizontal, 32)
-            .padding(.bottom, 24)
+            .padding(.horizontal, 36)
+            .padding(.bottom, 36)
         }
-        .frame(width: 400, height: 380)
+        .frame(width: 420, height: 446)
         .alert("Notice", isPresented: $showAlert) {
             Button("OK", role: .cancel) { }
         } message: {
