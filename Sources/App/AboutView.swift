@@ -15,23 +15,24 @@ struct AboutView: View {
             VStack(spacing: 6) {
                 Image(nsImage: NSApp.applicationIconImage)
                     .resizable()
-                    .frame(width: 128, height: 128)
+                    .frame(width: 162, height: 162)
+                    .offset(y: -2)
+                    .overlay(alignment: .bottom) {
+                        if entitlementManager.hasProAccess {
+                            Text("Pro")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(Color.accentColor)
+                                .cornerRadius(4)
+                                .offset(y: -8)
+                        }
+                    }
 
                 VStack(spacing: 4) {
-                    Text("Rollpaper")
+                    Text(entitlementManager.hasProAccess ? "Rollpaper Pro" : "Rollpaper")
                         .font(.system(size: 24, weight: .bold))
-                        .overlay(alignment: .topTrailing) {
-                            if entitlementManager.hasProAccess {
-                                Text("PRO")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 5)
-                                    .padding(.vertical, 1)
-                                    .background(Color.accentColor)
-                                    .cornerRadius(3)
-                                    .offset(x: 34, y: 1)
-                            }
-                        }
 
                     Text("Version \(currentVersion)")
                         .font(.subheadline)
@@ -73,6 +74,7 @@ struct AboutView: View {
                 }
             }
             .font(.caption)
+            .padding(.bottom, 8)
         }
         .padding(30)
         .frame(width: 320, height: 340)

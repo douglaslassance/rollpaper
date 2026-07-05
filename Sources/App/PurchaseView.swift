@@ -14,18 +14,8 @@ struct PurchaseView: View {
                     .font(.system(size: 48))
                     .foregroundColor(.accentColor)
 
-                Text("Upgrade to Rollpaper")
+                Text("Upgrade to Rollpaper Pro")
                     .font(.system(size: 24, weight: .bold))
-                    .overlay(alignment: .topTrailing) {
-                        Text("PRO")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(Color.accentColor)
-                            .cornerRadius(3)
-                            .offset(x: 32, y: 1)
-                    }
             }
             .padding(.top, 28)
 
