@@ -223,6 +223,7 @@ private struct FilteredRow: View {
 struct GeneralSettingsView: View {
     @EnvironmentObject private var appState: AppState
     @ObservedObject private var entitlements = EntitlementManager.shared
+    @State private var showModelLicense = false
 
     private let intervalPresets: [(String, Double)] = [
         ("Every minute", 60),
@@ -267,9 +268,7 @@ struct GeneralSettingsView: View {
                         }
                     }
                 ))
-                Text(entitlements.hasProAccess
-                     ? "Enlarges images smaller than your screen with on-device AI, applied on each rotation."
-                     : "Enlarges images smaller than your screen with on-device AI. Requires Rollpaper Pro.")
+                Text(upscalingDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -279,5 +278,98 @@ struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .environment(\.openURL, OpenURLAction { url in
+            if url.scheme == "rollpaper" {
+                showModelLicense = true
+                return .handled
+            }
+            return .systemAction
+        })
+        .sheet(isPresented: $showModelLicense) {
+            ModelLicenseView()
+        }
     }
+
+    /// The upscaling caption, with the model name linked to its license. The
+    /// `rollpaper://` scheme is intercepted above to open the license sheet
+    /// rather than a browser.
+    private var upscalingDescription: AttributedString {
+        let markdown = entitlements.hasProAccess
+            ? "Enlarges images smaller than your screen using [Real-ESRGAN](rollpaper://license) on-device, applied on each rotation."
+            : "Enlarges images smaller than your screen using [Real-ESRGAN](rollpaper://license) on-device."
+        return (try? AttributedString(markdown: markdown)) ?? AttributedString(markdown)
+    }
+}
+
+/// Attribution for the bundled upscaling model. Reproducing the copyright,
+/// conditions, and disclaimer here satisfies the BSD-3-Clause requirement to
+/// include them with the distribution; the exact screen is not prescribed.
+private struct ModelLicenseView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Upscaling model")
+                .font(.headline)
+
+            Text("AI upscaling uses the Real-ESRGAN “realesr-general-x4v3” model, converted to Core ML.")
+                .font(.callout)
+                .foregroundColor(.secondary)
+
+            ScrollView {
+                Text(Self.license)
+                    .font(.system(size: 11, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(10)
+            .background(Color(nsColor: .textBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor)))
+
+            HStack {
+                Spacer()
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 480, height: 420)
+    }
+
+    static let license = """
+    Real-ESRGAN
+    https://github.com/xinntao/Real-ESRGAN
+
+    BSD 3-Clause License
+
+    Copyright (c) 2021, Xintao Wang
+    All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are met:
+
+    1. Redistributions of source code must retain the above copyright notice, this
+       list of conditions and the following disclaimer.
+
+    2. Redistributions in binary form must reproduce the above copyright notice,
+       this list of conditions and the following disclaimer in the documentation
+       and/or other materials provided with the distribution.
+
+    3. Neither the name of the copyright holder nor the names of its
+       contributors may be used to endorse or promote products derived from
+       this software without specific prior written permission.
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+    IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+    FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+    DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+    CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+    OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+    OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+    """
 }
