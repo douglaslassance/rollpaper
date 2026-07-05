@@ -28,7 +28,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "App",
-            dependencies: appTargetDeps
+            dependencies: appTargetDeps,
+            resources: [
+                .copy("Resources/RealESRGANx4v3.mlmodelc")
+            ]
         ),
         .testTarget(
             name: "RollpaperTests",
