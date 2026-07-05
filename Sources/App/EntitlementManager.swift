@@ -12,7 +12,7 @@ class EntitlementManager: ObservableObject {
 
     private let licenseKeyKey = "proLicenseKey"
     private let proProductID = "me.douglaslassance.Rollpaper.pro"
-    private let gumroadProductID = "rollpaper-pro"
+    private let gumroadProductID = "TGjhC8SjgfqsVzAxvngBRg=="
 
     private init() {
         checkEntitlementsSync()
