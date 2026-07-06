@@ -99,7 +99,7 @@ struct PurchaseView: View {
                     .disabled(licenseKey.isEmpty)
                 }
 
-                Link("Purchase a license key", destination: URL(string: "https://douglaslassance.gumroad.com/l/rollpaper")!)
+                Link("Purchase a license key", destination: URL(string: "https://douglaslassance.gumroad.com/l/rollpaper-pro")!)
                     .font(.subheadline)
                     .foregroundColor(.accentColor)
                 #endif
