@@ -107,7 +107,7 @@ struct PurchaseView: View {
             .padding(.horizontal, 36)
             .padding(.bottom, 36)
         }
-        .frame(width: 420, height: 446)
+        .frame(width: 420)
         .alert("Notice", isPresented: $showAlert) {
             Button("OK", role: .cancel) { }
         } message: {
