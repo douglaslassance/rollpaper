@@ -40,14 +40,15 @@ final class WallpaperManager {
         }
     }
 
-    /// Deletes every cached file except `keep`, so the cache holds roughly the
-    /// current wallpaper rather than growing without bound (the AI-upscaled
-    /// files are large). Only the currently-set wallpaper needs to stay on disk.
-    func pruneCache(keeping keep: URL) {
+    /// Deletes every cached file except those in `keep`, so the cache holds
+    /// roughly the current wallpaper rather than growing without bound (the
+    /// AI-upscaled files are large). Both the original download and the
+    /// currently-set (possibly upscaled) file need to stay on disk.
+    func pruneCache(keeping keep: [URL]) {
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(at: cacheURL, includingPropertiesForKeys: nil) else { return }
-        let keepPath = keep.standardizedFileURL.path
-        for entry in entries where entry.standardizedFileURL.path != keepPath {
+        let keepPaths = Set(keep.map { $0.standardizedFileURL.path })
+        for entry in entries where !keepPaths.contains(entry.standardizedFileURL.path) {
             try? fm.removeItem(at: entry)
         }
     }

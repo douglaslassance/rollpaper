@@ -73,8 +73,8 @@ struct MenuContent: View {
 
         Divider()
 
-        Button("Download current wallpaper…") {
-            appState.downloadCurrentWallpaper()
+        Button("Save Current Wallpaper As...") {
+            appState.saveCurrentWallpaperAs()
         }
         .disabled(appState.currentWallpaper == nil)
 

@@ -10,6 +10,10 @@ final class AppState: ObservableObject {
 
     @Published private(set) var currentWallpaper: WallpaperItem?
     @Published private(set) var currentLocalFile: URL?
+    /// The original, non-upscaled download of `currentLocalFile`. Kept around
+    /// (and out of the cache prune) so saving the wallpaper to disk never
+    /// exports the upscaled version.
+    @Published private(set) var currentLocalOriginalFile: URL?
     @Published private(set) var isRefreshing: Bool = false
     @Published private(set) var lastError: String?
 
@@ -81,10 +85,11 @@ final class AppState: ObservableObject {
                 fileToSet = newLocal
             }
             try WallpaperManager.shared.setDesktopImage(fileToSet, fitMode: fitMode)
-            WallpaperManager.shared.pruneCache(keeping: fileToSet)
+            WallpaperManager.shared.pruneCache(keeping: [fileToSet, newLocal])
 
             currentWallpaper = pick
             currentLocalFile = fileToSet
+            currentLocalOriginalFile = newLocal
             lastError = nil
             recordSeen(pick)
         } catch {
@@ -97,8 +102,8 @@ final class AppState: ObservableObject {
         try? WallpaperManager.shared.setDesktopImage(file, fitMode: fitMode)
     }
 
-    func downloadCurrentWallpaper() {
-        guard let local = currentLocalFile else { return }
+    func saveCurrentWallpaperAs() {
+        guard let local = currentLocalOriginalFile else { return }
         let panel = NSSavePanel()
         panel.nameFieldStringValue = local.lastPathComponent
         panel.canCreateDirectories = true
