@@ -24,6 +24,12 @@ final class AppState: ObservableObject {
     @AppStorage("upscaleEnabled") var upscaleEnabled: Bool = false
 
     private var rotationTask: Task<Void, Never>?
+    /// Set when `rotateNow()` is called while another rotation is already in
+    /// flight (e.g. the automatic timer racing a manual trigger like
+    /// "Don't show this again"). Without this, the guard below would just
+    /// silently drop the request instead of running it once the in-flight
+    /// rotation finishes.
+    private var rotateAgainRequested = false
 
     /// imageURL.absoluteString → last time we set it as the wallpaper.
     /// Used to dampen the pick weight of recently-shown images; the dampening
@@ -55,10 +61,20 @@ final class AppState: ObservableObject {
     }
 
     func rotateNow() async {
-        guard !isRefreshing else { return }
+        guard !isRefreshing else {
+            rotateAgainRequested = true
+            return
+        }
         isRefreshing = true
         defer { isRefreshing = false }
 
+        repeat {
+            rotateAgainRequested = false
+            await performRotation()
+        } while rotateAgainRequested
+    }
+
+    private func performRotation() async {
         do {
             var items: [WallpaperItem] = []
             for feed in feeds {
