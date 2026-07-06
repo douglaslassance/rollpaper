@@ -43,13 +43,26 @@ enum CoreMLUpscaler {
     /// Compiled once per process. The `.mlmodelc` is bundled precompiled, so
     /// this is a direct load, no runtime compilation.
     private static let model: MLModel? = {
-        guard let url = Bundle.module.url(forResource: "RealESRGANx4v3", withExtension: "mlmodelc") else {
-            return nil
-        }
+        guard let url = modelURL() else { return nil }
         let config = MLModelConfiguration()
         config.computeUnits = .all
         return try? MLModel(contentsOf: url, configuration: config)
     }()
+
+    /// `Bundle.module`'s generated accessor looks for the resource bundle at
+    /// the `.app` root, then falls back to an absolute dev-machine build
+    /// path; neither exists in a packaged, sandboxed app (the resource
+    /// bundle actually lives under `Contents/Resources`), so it hits a
+    /// fatal error instead of returning nil. Resolve the real location
+    /// directly and only fall back to `Bundle.module` for `swift run`/tests.
+    private static func modelURL() -> URL? {
+        if let resourcesBundle = Bundle.main.resourceURL?.appendingPathComponent("Rollpaper_App.bundle"),
+           let bundle = Bundle(path: resourcesBundle.path),
+           let url = bundle.url(forResource: "RealESRGANx4v3", withExtension: "mlmodelc") {
+            return url
+        }
+        return Bundle.module.url(forResource: "RealESRGANx4v3", withExtension: "mlmodelc")
+    }
 
     static var isAvailable: Bool { model != nil }
 
