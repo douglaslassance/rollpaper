@@ -1,31 +1,55 @@
 import Foundation
 
 enum MastodonClient {
-    static func fetch(account: String, instance: String?) async throws -> [WallpaperItem] {
-        let trimmedAccount = account.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedAccount.isEmpty else {
-            throw FeedError.invalidConfiguration("Mastodon account is empty")
+    /// Fetches an account's statuses or a hashtag timeline from a single reference
+    /// that always carries its instance: "user@instance" (optionally "@"-prefixed)
+    /// or "#hashtag@instance".
+    static func fetch(_ reference: String) async throws -> [WallpaperItem] {
+        let trimmed = reference.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw FeedError.invalidConfiguration("Mastodon handle or hashtag is empty")
         }
-        let baseURL = try resolveInstanceURL(account: trimmedAccount, instance: instance)
-        let accountID = try await lookup(account: trimmedAccount, baseURL: baseURL)
+
+        if trimmed.hasPrefix("#") {
+            let (tag, instance) = try splitNameAndInstance(String(trimmed.dropFirst()))
+            return try await fetchHashtag(tag, baseURL: instance)
+        }
+
+        let withoutAt = trimmed.hasPrefix("@") ? String(trimmed.dropFirst()) : trimmed
+        let (account, baseURL) = try splitNameAndInstance(withoutAt)
+        let accountID = try await lookup(account: account, baseURL: baseURL)
         return try await fetchStatuses(accountID: accountID, baseURL: baseURL)
     }
 
-    private static func resolveInstanceURL(account: String, instance: String?) throws -> URL {
-        if let instance, !instance.isEmpty {
-            let normalized = instance.hasPrefix("http") ? instance : "https://\(instance)"
-            guard let url = URL(string: normalized) else {
-                throw FeedError.invalidConfiguration("Invalid Mastodon instance URL")
-            }
-            return url
+    /// Splits "name@instance" into the bare name and the instance's base URL.
+    private static func splitNameAndInstance(_ string: String) throws -> (name: String, baseURL: URL) {
+        let parts = string.split(separator: "@", omittingEmptySubsequences: true)
+        guard parts.count == 2, let url = URL(string: "https://\(parts[1])") else {
+            throw FeedError.invalidConfiguration(
+                "Include an instance, e.g. user@mastodon.social or #hashtag@mastodon.social"
+            )
         }
-        let parts = account.split(separator: "@", omittingEmptySubsequences: true)
-        if parts.count == 2, let url = URL(string: "https://\(parts[1])") {
-            return url
+        return (String(parts[0]), url)
+    }
+
+    private static func fetchHashtag(_ hashtag: String, baseURL: URL) async throws -> [WallpaperItem] {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("/api/v1/timelines/tag/\(hashtag)"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [
+            URLQueryItem(name: "only_media", value: "true"),
+            URLQueryItem(name: "limit", value: "40")
+        ]
+        guard let url = components.url else {
+            throw FeedError.invalidConfiguration("Could not build Mastodon hashtag URL")
         }
-        throw FeedError.invalidConfiguration(
-            "Mastodon instance is required when account is not in user@instance form"
-        )
+        let (data, response) = try await URLSession.shared.data(from: url)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw FeedError.network("Mastodon hashtag timeline returned HTTP \(http.statusCode)")
+        }
+        let statuses = try JSONDecoder.mastodon.decode([Status].self, from: data)
+        return statuses.flatMap(wallpaperItems(from:))
     }
 
     private static func lookup(account: String, baseURL: URL) async throws -> String {
@@ -61,17 +85,19 @@ enum MastodonClient {
             throw FeedError.network("Mastodon statuses returned HTTP \(http.statusCode)")
         }
         let statuses = try JSONDecoder.mastodon.decode([Status].self, from: data)
-        return statuses.flatMap { status -> [WallpaperItem] in
-            let postURL = URL(string: status.url ?? "")
-            return status.mediaAttachments.compactMap { attachment in
-                guard attachment.type == "image", let imageURL = URL(string: attachment.url) else { return nil }
-                return WallpaperItem(
-                    id: attachment.id,
-                    imageURL: imageURL,
-                    sourceURL: postURL,
-                    createdAt: status.createdAt
-                )
-            }
+        return statuses.flatMap(wallpaperItems(from:))
+    }
+
+    private static func wallpaperItems(from status: Status) -> [WallpaperItem] {
+        let postURL = URL(string: status.url ?? "")
+        return status.mediaAttachments.compactMap { attachment in
+            guard attachment.type == "image", let imageURL = URL(string: attachment.url) else { return nil }
+            return WallpaperItem(
+                id: attachment.id,
+                imageURL: imageURL,
+                sourceURL: postURL,
+                createdAt: status.createdAt
+            )
         }
     }
 

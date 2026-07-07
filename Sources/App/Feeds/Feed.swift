@@ -20,11 +20,13 @@ struct FilteredEntry: Codable, Hashable, Identifiable, Sendable {
 enum FeedKind: String, Codable, CaseIterable, Sendable {
     case bluesky
     case mastodon
+    case reddit
 
     var displayName: String {
         switch self {
         case .bluesky: return "Bluesky"
         case .mastodon: return "Mastodon"
+        case .reddit: return "Reddit"
         }
     }
 }
@@ -34,35 +36,38 @@ struct FeedConfig: Codable, Identifiable, Hashable, Sendable {
     var kind: FeedKind
     var name: String
     var handle: String
-    var instance: String?
 
     init(
         id: UUID = UUID(),
         kind: FeedKind,
         name: String,
-        handle: String,
-        instance: String? = nil
+        handle: String
     ) {
         self.id = id
         self.kind = kind
         self.name = name
         self.handle = handle
-        self.instance = instance
     }
 
     var subtitle: String {
         switch kind {
-        case .bluesky: return "Bluesky · \(handle)"
-        case .mastodon: return "Mastodon · \(handle)"
+        case .bluesky:
+            return BlueskyClient.isFeedReference(handle) ? "Bluesky feed · \(handle)" : "Bluesky · \(handle)"
+        case .mastodon:
+            return "Mastodon · \(handle)"
+        case .reddit:
+            return "Reddit · r/\(handle)"
         }
     }
 
     func fetch() async throws -> [WallpaperItem] {
         switch kind {
         case .bluesky:
-            return try await BlueskyClient.fetch(actor: handle)
+            return try await BlueskyClient.fetch(handle)
         case .mastodon:
-            return try await MastodonClient.fetch(account: handle, instance: instance)
+            return try await MastodonClient.fetch(handle)
+        case .reddit:
+            return try await RedditClient.fetch(subreddit: handle)
         }
     }
 }

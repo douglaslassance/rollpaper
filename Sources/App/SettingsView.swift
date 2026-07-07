@@ -83,7 +83,6 @@ struct AddFeedView: View {
     @State private var kind: FeedKind = .bluesky
     @State private var name: String = ""
     @State private var handle: String = ""
-    @State private var instance: String = "https://mastodon.social"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -100,10 +99,11 @@ struct AddFeedView: View {
 
             switch kind {
             case .bluesky:
-                TextField("Handle or DID (e.g. user.bsky.social)", text: $handle)
+                TextField("@handle, or a feed link", text: $handle)
             case .mastodon:
-                TextField("Account (e.g. user@mastodon.social)", text: $handle)
-                TextField("Instance URL", text: $instance)
+                TextField("@user@instance, or #hashtag@instance", text: $handle)
+            case .reddit:
+                TextField("Subreddit (e.g. wallpapers)", text: $handle)
             }
 
             HStack {
@@ -116,8 +116,7 @@ struct AddFeedView: View {
                     let feed = FeedConfig(
                         kind: kind,
                         name: display,
-                        handle: trimmedHandle,
-                        instance: kind == .mastodon ? instance.trimmingCharacters(in: .whitespaces) : nil
+                        handle: trimmedHandle
                     )
                     onAdd(feed)
                     dismiss()
