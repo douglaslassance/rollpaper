@@ -11,7 +11,7 @@ class EntitlementManager: ObservableObject {
     static let shared = EntitlementManager()
 
     private let licenseKeyKey = "proLicenseKey"
-    private let proProductID = "me.douglaslassance.Rollpaper.pro"
+    private let proProductID = "me.douglaslassance.rollpaper.pro"
     private let gumroadProductID = "TGjhC8SjgfqsVzAxvngBRg=="
 
     private init() {

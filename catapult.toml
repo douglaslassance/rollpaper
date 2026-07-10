@@ -4,7 +4,7 @@
 [app]
 name        = "Rollpaper"
 slug        = "rollpaper"
-bundle_id   = "me.douglaslassance.Rollpaper"
+bundle_id   = "me.douglaslassance.rollpaper"
 team_id     = "556XHQJK3G"
 developer   = "Douglas Lassance"
 homepage    = "https://douglaslassance.me/rollpaper"

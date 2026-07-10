@@ -20,7 +20,7 @@ cask "rollpaper" do
 
   zap trash: [
     "~/Library/Application Support/Rollpaper",
-    "~/Library/Caches/me.douglaslassance.Rollpaper",
-    "~/Library/Preferences/me.douglaslassance.Rollpaper.plist",
+    "~/Library/Caches/me.douglaslassance.rollpaper",
+    "~/Library/Preferences/me.douglaslassance.rollpaper.plist",
   ]
 end

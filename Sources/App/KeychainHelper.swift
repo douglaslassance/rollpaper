@@ -3,7 +3,7 @@ import Security
 
 class KeychainHelper {
 
-    private static let service = "me.douglaslassance.Rollpaper"
+    private static let service = "me.douglaslassance.rollpaper"
 
     static func save(_ data: Data, forKey key: String) -> Bool {
         let query: [String: Any] = [

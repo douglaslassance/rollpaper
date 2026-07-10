@@ -11,7 +11,7 @@
     <key>com.apple.security.files.downloads.read-write</key>
     <true/>
     <key>com.apple.application-identifier</key>
-    <string>556XHQJK3G.me.douglaslassance.Rollpaper</string>
+    <string>556XHQJK3G.me.douglaslassance.rollpaper</string>
     <key>com.apple.developer.team-identifier</key>
     <string>556XHQJK3G</string>
 </dict>
