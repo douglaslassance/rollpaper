@@ -83,6 +83,8 @@ struct AddFeedView: View {
     @State private var kind: FeedKind = .bluesky
     @State private var name: String = ""
     @State private var handle: String = ""
+    @State private var folderBookmark: Data?
+    @State private var folderPath: String = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -104,29 +106,70 @@ struct AddFeedView: View {
                 TextField("@user@instance, or #hashtag@instance", text: $handle)
             case .reddit:
                 TextField("Subreddit (e.g. wallpapers)", text: $handle)
+            case .localFolder:
+                HStack(spacing: 8) {
+                    Button("Choose Folder…") { chooseFolder() }
+                    Text(folderPath.isEmpty ? "No folder selected" : folderPath)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
             }
 
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }
-                Button("Add") {
-                    let trimmedName = name.trimmingCharacters(in: .whitespaces)
-                    let trimmedHandle = handle.trimmingCharacters(in: .whitespaces)
-                    let display = trimmedName.isEmpty ? trimmedHandle : trimmedName
-                    let feed = FeedConfig(
-                        kind: kind,
-                        name: display,
-                        handle: trimmedHandle
-                    )
-                    onAdd(feed)
-                    dismiss()
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(handle.trimmingCharacters(in: .whitespaces).isEmpty)
+                Button("Add") { add() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!canAdd)
             }
         }
         .padding(20)
         .frame(width: 380)
+    }
+
+    private var canAdd: Bool {
+        switch kind {
+        case .localFolder:
+            return folderBookmark != nil
+        default:
+            return !handle.trimmingCharacters(in: .whitespaces).isEmpty
+        }
+    }
+
+    private func chooseFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Choose"
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let bookmark = try? url.bookmarkData(
+            options: [.withSecurityScope],
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        ) else { return }
+        folderBookmark = bookmark
+        folderPath = url.path
+        if name.trimmingCharacters(in: .whitespaces).isEmpty {
+            name = url.lastPathComponent
+        }
+    }
+
+    private func add() {
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        switch kind {
+        case .localFolder:
+            let display = trimmedName.isEmpty ? (folderPath as NSString).lastPathComponent : trimmedName
+            onAdd(FeedConfig(kind: kind, name: display, handle: folderPath, bookmark: folderBookmark))
+        default:
+            let trimmedHandle = handle.trimmingCharacters(in: .whitespaces)
+            let display = trimmedName.isEmpty ? trimmedHandle : trimmedName
+            onAdd(FeedConfig(kind: kind, name: display, handle: trimmedHandle))
+        }
+        dismiss()
     }
 }
 

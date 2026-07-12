@@ -21,12 +21,14 @@ enum FeedKind: String, Codable, CaseIterable, Sendable {
     case bluesky
     case mastodon
     case reddit
+    case localFolder
 
     var displayName: String {
         switch self {
         case .bluesky: return "Bluesky"
         case .mastodon: return "Mastodon"
         case .reddit: return "Reddit"
+        case .localFolder: return "Folder"
         }
     }
 }
@@ -35,18 +37,27 @@ struct FeedConfig: Codable, Identifiable, Hashable, Sendable {
     let id: UUID
     var kind: FeedKind
     var name: String
+    /// For remote feeds this holds the handle/subreddit/feed link. For a local
+    /// folder feed it holds the folder path, shown in the subtitle; the actual
+    /// access is granted by `bookmark`.
     var handle: String
+    /// Security-scoped bookmark for `.localFolder` feeds, so the app can re-read
+    /// the user-picked folder across launches inside the sandbox. Nil for remote
+    /// feeds; optional so previously persisted feeds still decode.
+    var bookmark: Data?
 
     init(
         id: UUID = UUID(),
         kind: FeedKind,
         name: String,
-        handle: String
+        handle: String,
+        bookmark: Data? = nil
     ) {
         self.id = id
         self.kind = kind
         self.name = name
         self.handle = handle
+        self.bookmark = bookmark
     }
 
     var subtitle: String {
@@ -57,6 +68,8 @@ struct FeedConfig: Codable, Identifiable, Hashable, Sendable {
             return "Mastodon · \(handle)"
         case .reddit:
             return "Reddit · r/\(handle)"
+        case .localFolder:
+            return "Folder · \(handle)"
         }
     }
 
@@ -68,6 +81,8 @@ struct FeedConfig: Codable, Identifiable, Hashable, Sendable {
             return try await MastodonClient.fetch(handle)
         case .reddit:
             return try await RedditClient.fetch(subreddit: handle)
+        case .localFolder:
+            return try await LocalFolderClient.fetch(bookmark: bookmark)
         }
     }
 }
