@@ -131,7 +131,11 @@ final class AppState: ObservableObject {
 
     func openCurrentWallpaperSource() {
         guard let url = currentWallpaper?.sourceURL else { return }
-        NSWorkspace.shared.open(url)
+        if url.isFileURL {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } else {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     /// Add the current wallpaper to the filter list and immediately rotate to

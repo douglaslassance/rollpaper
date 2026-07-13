@@ -49,7 +49,8 @@ enum LocalFolderClient {
             return WallpaperItem(
                 id: url.path,
                 imageURL: url,
-                sourceURL: nil,
+                // The file itself is the "source"; the menu reveals it in Finder.
+                sourceURL: url,
                 createdAt: modified
             )
         }
