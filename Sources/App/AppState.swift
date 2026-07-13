@@ -138,11 +138,22 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// Add the current wallpaper to the filter list and immediately rotate to
-    /// a new one. If a rotation is already in flight, the guard in `rotateNow`
-    /// will skip; the filtered image is still excluded from future picks.
+    /// Exclude the current wallpaper and rotate to a new one. Remote images can
+    /// only be filtered (blacklisted); for a local-folder image we also offer to
+    /// move the file to the Trash, since the user owns it.
     func filterCurrentWallpaper() {
         guard let item = currentWallpaper else { return }
+        if item.imageURL.isFileURL {
+            promptTrashOrFilter(item)
+        } else {
+            filter(item)
+        }
+    }
+
+    /// Add `item` to the filter list and immediately rotate to a new one. If a
+    /// rotation is already in flight, the guard in `rotateNow` will skip; the
+    /// filtered image is still excluded from future picks.
+    private func filter(_ item: WallpaperItem) {
         let key = item.imageURL.absoluteString
         guard !filteredURLs.contains(key) else { return }
         let entry = FilteredEntry(
@@ -151,6 +162,42 @@ final class AppState: ObservableObject {
             addedAt: Date()
         )
         filtered.insert(entry, at: 0)
+        Task { await rotateNow() }
+    }
+
+    /// For a local-folder wallpaper, ask whether to move the file to the Trash
+    /// or just filter it out. Cancel is the default so a stray Return never
+    /// trashes a file.
+    private func promptTrashOrFilter(_ item: WallpaperItem) {
+        let alert = NSAlert()
+        alert.messageText = "Remove “\(item.imageURL.lastPathComponent)” from rotation?"
+        alert.informativeText = "Move the file to the Trash, or keep it on disk and just filter it out of Rollpaper."
+        alert.alertStyle = .warning
+        let trash = alert.addButton(withTitle: "Move to Trash")
+        trash.hasDestructiveAction = true
+        trash.keyEquivalent = ""
+        alert.addButton(withTitle: "Just Filter")
+        let cancel = alert.addButton(withTitle: "Cancel")
+        cancel.keyEquivalent = "\r"
+
+        NSApp.activate(ignoringOtherApps: true)
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            trashCurrentFile(item)
+        case .alertSecondButtonReturn:
+            filter(item)
+        default:
+            break
+        }
+    }
+
+    private func trashCurrentFile(_ item: WallpaperItem) {
+        do {
+            try FileManager.default.trashItem(at: item.imageURL, resultingItemURL: nil)
+        } catch {
+            lastError = "Could not move to Trash: \(error.localizedDescription)"
+            return
+        }
         Task { await rotateNow() }
     }
 
