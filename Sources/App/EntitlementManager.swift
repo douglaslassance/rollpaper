@@ -12,7 +12,8 @@ class EntitlementManager: ObservableObject {
 
     private let licenseKeyKey = "proLicenseKey"
     private let proProductID = "me.douglaslassance.rollpaper.pro"
-    private let gumroadProductID = "TGjhC8SjgfqsVzAxvngBRg=="
+    private let polarOrganizationID = "3ddea45d-875c-4f2f-841e-9693f6167629"
+    private let polarBenefitID = "86db2898-3136-4dd3-838f-4750f2b016d2"
 
     private init() {
         checkEntitlementsSync()
@@ -74,7 +75,7 @@ class EntitlementManager: ObservableObject {
         }
 
         let result = await withCheckedContinuation { continuation in
-            verifyWithGumroad(licenseKey: key) { continuation.resume(returning: $0) }
+            verifyWithPolar(licenseKey: key) { continuation.resume(returning: $0) }
         }
 
         switch result {
@@ -114,7 +115,7 @@ class EntitlementManager: ObservableObject {
         }
 
         let result = await withCheckedContinuation { continuation in
-            verifyWithGumroad(licenseKey: cleanedKey) { result in
+            verifyWithPolar(licenseKey: cleanedKey) { result in
                 continuation.resume(returning: result)
             }
         }
@@ -136,23 +137,34 @@ class EntitlementManager: ObservableObject {
         }
     }
 
-    private nonisolated func verifyWithGumroad(licenseKey: String, completion: @escaping @Sendable (Result<Void, LicenseError>) -> Void) {
-        guard let url = URL(string: "https://api.gumroad.com/v2/licenses/verify") else {
+    private nonisolated func verifyWithPolar(licenseKey: String, completion: @escaping @Sendable (Result<Void, LicenseError>) -> Void) {
+        guard let url = URL(string: "https://api.polar.sh/v1/customer-portal/license-keys/validate") else {
             completion(.failure(.networkError))
             return
         }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let productID = self.gumroadProductID
-        let body = "product_id=\(productID)&license_key=\(licenseKey)"
-        request.httpBody = body.data(using: .utf8)
+        // Scope validation to this app's benefit so a key for another app
+        // (same Polar organization) can't unlock this one.
+        let payload: [String: String] = [
+            "key": licenseKey,
+            "organization_id": self.polarOrganizationID,
+            "benefit_id": self.polarBenefitID,
+        ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
 
-        URLSession.shared.dataTask(with: request) { data, _, error in
+        URLSession.shared.dataTask(with: request) { data, response, error in
             if error != nil {
                 completion(.failure(.networkError))
+                return
+            }
+
+            // 404: key doesn't belong to this benefit. 422: malformed request.
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+                completion(.failure(.invalidKey("Invalid license key")))
                 return
             }
 
@@ -162,13 +174,11 @@ class EntitlementManager: ObservableObject {
                 return
             }
 
-            let success = json["success"] as? Bool ?? false
-
-            if success {
+            // Polar returns granted/revoked/disabled.
+            if json["status"] as? String == "granted" {
                 completion(.success(()))
             } else {
-                let message = json["message"] as? String ?? "Invalid license key"
-                completion(.failure(.invalidKey(message)))
+                completion(.failure(.invalidKey("Invalid license key")))
             }
         }.resume()
     }
