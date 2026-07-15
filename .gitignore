@@ -17,8 +17,7 @@ DerivedData/
 *.hmap
 
 # Build artifacts
-build/
-build-debug/
+build*/
 dist/
 
 # Icon generator intermediates (the .icns is committed)
