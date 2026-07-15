@@ -71,6 +71,11 @@ struct MenuContent: View {
         }
         .disabled(appState.feeds.isEmpty || appState.isRefreshing)
 
+        Button("Previous Wallpaper") {
+            appState.showPreviousWallpaper()
+        }
+        .disabled(!appState.canGoToPreviousWallpaper || appState.isRefreshing)
+
         Divider()
 
         Button("Save Current Wallpaper As...") {

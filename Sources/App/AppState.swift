@@ -17,6 +17,25 @@ final class AppState: ObservableObject {
     @Published private(set) var isRefreshing: Bool = false
     @Published private(set) var lastError: String?
 
+    /// True when there is at least one earlier wallpaper to step back to.
+    @Published private(set) var canGoToPreviousWallpaper = false
+
+    /// A wallpaper we can re-apply without re-fetching, because its local
+    /// files are still on disk (kept out of the cache prune).
+    private struct WallpaperSnapshot {
+        let wallpaper: WallpaperItem
+        let localFile: URL
+        let localOriginalFile: URL
+    }
+
+    /// Back-stack of previously-shown wallpapers, oldest-first, powering
+    /// "Previous Wallpaper". Capped so the (potentially large, upscaled) local
+    /// files don't accumulate; each entry's files are retained by the prune.
+    private var history: [WallpaperSnapshot] = [] {
+        didSet { canGoToPreviousWallpaper = !history.isEmpty }
+    }
+    private let maxHistoryCount = 10
+
     @AppStorage("rotationIntervalSeconds") var rotationIntervalSeconds: Double = 3600
     @AppStorage("fitMode") var fitMode: FitMode = .fill
     /// Pro-only: upscale each wallpaper toward the display resolution with
@@ -74,6 +93,22 @@ final class AppState: ObservableObject {
         } while rotateAgainRequested
     }
 
+    /// Step back to the previously-shown wallpaper. Its local files are still
+    /// on disk (kept out of the cache prune), so this re-applies them without
+    /// a fetch. Skipped while a rotation is in flight to avoid racing it.
+    func showPreviousWallpaper() {
+        guard !isRefreshing, let snapshot = history.popLast() else { return }
+        do {
+            try WallpaperManager.shared.setDesktopImage(snapshot.localFile, fitMode: fitMode)
+            currentWallpaper = snapshot.wallpaper
+            currentLocalFile = snapshot.localFile
+            currentLocalOriginalFile = snapshot.localOriginalFile
+            lastError = nil
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
     private func performRotation() async {
         do {
             var items: [WallpaperItem] = []
@@ -101,13 +136,29 @@ final class AppState: ObservableObject {
                 fileToSet = newLocal
             }
             try WallpaperManager.shared.setDesktopImage(fileToSet, fitMode: fitMode)
-            WallpaperManager.shared.pruneCache(keeping: [fileToSet, newLocal])
+
+            // Push the outgoing wallpaper onto the back-stack before replacing it.
+            if let current = currentWallpaper,
+               let localFile = currentLocalFile,
+               let originalFile = currentLocalOriginalFile {
+                history.append(WallpaperSnapshot(
+                    wallpaper: current,
+                    localFile: localFile,
+                    localOriginalFile: originalFile
+                ))
+                if history.count > maxHistoryCount { history.removeFirst() }
+            }
 
             currentWallpaper = pick
             currentLocalFile = fileToSet
             currentLocalOriginalFile = newLocal
             lastError = nil
             recordSeen(pick)
+
+            // Keep the current files plus every history entry's files so
+            // "Previous Wallpaper" can re-apply them; prune everything else.
+            let keep = [fileToSet, newLocal] + history.flatMap { [$0.localFile, $0.localOriginalFile] }
+            WallpaperManager.shared.pruneCache(keeping: keep)
         } catch {
             lastError = error.localizedDescription
         }
