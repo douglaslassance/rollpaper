@@ -99,7 +99,7 @@ struct PurchaseView: View {
                     .disabled(licenseKey.isEmpty)
                 }
 
-                Link("Purchase a license key", destination: URL(string: "https://buy.polar.sh/polar_cl_ibHvk32Wd3P5ZjxS5lgSuujjkcoV7Gan8BDjH1bAIQ6")!)
+                Link("Purchase a license key", destination: URL(string: "https://buy.stripe.com/dRm28s99631220q6l9dMI01")!)
                     .font(.subheadline)
                     .foregroundColor(.accentColor)
                 #endif

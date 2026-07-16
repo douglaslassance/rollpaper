@@ -12,8 +12,7 @@ class EntitlementManager: ObservableObject {
 
     private let licenseKeyKey = "proLicenseKey"
     private let proProductID = "me.douglaslassance.rollpaper.pro"
-    private let polarOrganizationID = "3ddea45d-875c-4f2f-841e-9693f6167629"
-    private let polarBenefitID = "86db2898-3136-4dd3-838f-4750f2b016d2"
+    private let productSlug = "rollpaper"
 
     private init() {
         checkEntitlementsSync()
@@ -75,7 +74,7 @@ class EntitlementManager: ObservableObject {
         }
 
         let result = await withCheckedContinuation { continuation in
-            verifyWithPolar(licenseKey: key) { continuation.resume(returning: $0) }
+            verifyWithLicenseServer(licenseKey: key) { continuation.resume(returning: $0) }
         }
 
         switch result {
@@ -115,7 +114,7 @@ class EntitlementManager: ObservableObject {
         }
 
         let result = await withCheckedContinuation { continuation in
-            verifyWithPolar(licenseKey: cleanedKey) { result in
+            verifyWithLicenseServer(licenseKey: cleanedKey) { result in
                 continuation.resume(returning: result)
             }
         }
@@ -137,8 +136,10 @@ class EntitlementManager: ObservableObject {
         }
     }
 
-    private nonisolated func verifyWithPolar(licenseKey: String, completion: @escaping @Sendable (Result<Void, LicenseError>) -> Void) {
-        guard let url = URL(string: "https://api.polar.sh/v1/customer-portal/license-keys/validate") else {
+    private nonisolated func verifyWithLicenseServer(licenseKey: String, completion: @escaping @Sendable (Result<Void, LicenseError>) -> Void) {
+        // The endpoint is scoped to this app's slug, so a key for another app
+        // can't unlock this one even though they share the same server.
+        guard let url = URL(string: "https://api.douglaslassance.me/\(self.productSlug)/license/validate") else {
             completion(.failure(.networkError))
             return
         }
@@ -147,13 +148,7 @@ class EntitlementManager: ObservableObject {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        // Scope validation to this app's benefit so a key for another app
-        // (same Polar organization) can't unlock this one.
-        let payload: [String: String] = [
-            "key": licenseKey,
-            "organization_id": self.polarOrganizationID,
-            "benefit_id": self.polarBenefitID,
-        ]
+        let payload: [String: String] = ["key": licenseKey]
         request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
 
         URLSession.shared.dataTask(with: request) { data, response, error in
@@ -162,7 +157,6 @@ class EntitlementManager: ObservableObject {
                 return
             }
 
-            // 404: key doesn't belong to this benefit. 422: malformed request.
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
                 completion(.failure(.invalidKey("Invalid license key")))
                 return
@@ -174,7 +168,7 @@ class EntitlementManager: ObservableObject {
                 return
             }
 
-            // Polar returns granted/revoked/disabled.
+            // The server returns granted / revoked / invalid.
             if json["status"] as? String == "granted" {
                 completion(.success(()))
             } else {
