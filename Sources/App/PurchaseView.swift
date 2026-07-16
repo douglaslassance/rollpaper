@@ -78,7 +78,7 @@ struct PurchaseView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
-                    TextField("XXXXXXXX-XXXXXXXX-XXXXXXXX-XXXXXXXX", text: $licenseKey)
+                    TextField("XXXXX-XXXXX-XXXXX", text: $licenseKey)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
