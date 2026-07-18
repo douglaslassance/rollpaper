@@ -43,6 +43,14 @@ final class AppState: ObservableObject {
     @AppStorage("upscaleEnabled") var upscaleEnabled: Bool = false
 
     private var rotationTask: Task<Void, Never>?
+    /// One-shot retry scheduled after a rotation fails, so recovery doesn't wait
+    /// for the next full interval (which can be hours or a day). Cancelled once a
+    /// rotation succeeds.
+    private var retryTask: Task<Void, Never>?
+    private var consecutiveFailures = 0
+    /// Backoff for the failure retry: 30s, doubling up to 10 minutes.
+    private let baseRetryDelay: Double = 30
+    private let maxRetryDelay: Double = 600
     /// Set when `rotateNow()` is called while another rotation is already in
     /// flight (e.g. the automatic timer racing a manual trigger like
     /// "Don't show this again"). Without this, the guard below would just
@@ -77,6 +85,7 @@ final class AppState: ObservableObject {
 
     deinit {
         rotationTask?.cancel()
+        retryTask?.cancel()
     }
 
     func rotateNow() async {
@@ -87,10 +96,32 @@ final class AppState: ObservableObject {
         isRefreshing = true
         defer { isRefreshing = false }
 
+        var failed = false
         repeat {
             rotateAgainRequested = false
-            await performRotation()
+            failed = await performRotation()
         } while rotateAgainRequested
+        scheduleRetryIfNeeded(failed: failed)
+    }
+
+    /// After a genuine rotation failure (e.g. a network hiccup or a transiently
+    /// missing cache), retry with exponential backoff instead of waiting for the
+    /// next scheduled interval. A success cancels the pending retry and resets
+    /// the backoff.
+    private func scheduleRetryIfNeeded(failed: Bool) {
+        retryTask?.cancel()
+        guard failed else {
+            consecutiveFailures = 0
+            retryTask = nil
+            return
+        }
+        consecutiveFailures += 1
+        let delay = min(baseRetryDelay * pow(2, Double(consecutiveFailures - 1)), maxRetryDelay)
+        retryTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            if Task.isCancelled { return }
+            await self?.rotateNow()
+        }
     }
 
     /// Step back to the previously-shown wallpaper. Its local files are still
@@ -109,7 +140,12 @@ final class AppState: ObservableObject {
         }
     }
 
-    private func performRotation() async {
+    /// Runs one rotation. Returns `true` when it failed in a way worth retrying
+    /// soon (a thrown error such as a network or filesystem failure), and
+    /// `false` on success or on a stable non-error condition (no feeds, or every
+    /// item filtered) where an immediate retry would just repeat itself.
+    @discardableResult
+    private func performRotation() async -> Bool {
         do {
             var items: [WallpaperItem] = []
             for feed in feeds {
@@ -126,7 +162,7 @@ final class AppState: ObservableObject {
                 } else {
                     lastError = "No images in feeds"
                 }
-                return
+                return false
             }
             let newLocal = try await WallpaperManager.shared.download(pick.imageURL)
             let fileToSet: URL
@@ -159,8 +195,10 @@ final class AppState: ObservableObject {
             // "Previous Wallpaper" can re-apply them; prune everything else.
             let keep = [fileToSet, newLocal] + history.flatMap { [$0.localFile, $0.localOriginalFile] }
             WallpaperManager.shared.pruneCache(keeping: keep)
+            return false
         } catch {
             lastError = error.localizedDescription
+            return true
         }
     }
 

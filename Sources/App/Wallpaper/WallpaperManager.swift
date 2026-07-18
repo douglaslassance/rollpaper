@@ -12,6 +12,15 @@ final class WallpaperManager {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
         let base = caches.first ?? FileManager.default.temporaryDirectory
         cacheURL = base.appendingPathComponent("Rollpaper", isDirectory: true)
+        ensureCacheDirectory()
+    }
+
+    /// (Re)creates the cache directory if it is missing. `~/Library/Caches` is
+    /// purgeable: macOS can delete our subdirectory under disk pressure or
+    /// during OS updates. Creating it only once at init meant every later
+    /// `write` failed with "The folder … doesn't exist.", wedging rotation
+    /// until relaunch. Calling this before each write lets a purge self-heal.
+    private func ensureCacheDirectory() {
         try? FileManager.default.createDirectory(at: cacheURL, withIntermediateDirectories: true)
     }
 
@@ -20,6 +29,7 @@ final class WallpaperManager {
         let ext = preferredExtension(for: response, fallbackURL: remoteURL) ?? "jpg"
         let base = baseFilename(for: remoteURL)
         let local = cacheURL.appendingPathComponent("\(base).\(ext)")
+        ensureCacheDirectory()
         try data.write(to: local, options: .atomic)
         return local
     }
@@ -31,6 +41,7 @@ final class WallpaperManager {
     func upscaledIfBeneficial(_ localFile: URL) async -> URL {
         let target = largestScreenPixelSize()
         let directory = cacheURL
+        ensureCacheDirectory()
         do {
             return try await Task.detached(priority: .userInitiated) {
                 try CoreMLUpscaler.upscale(imageAt: localFile, toFill: target, outputDirectory: directory)
