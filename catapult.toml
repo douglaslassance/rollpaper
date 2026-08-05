@@ -33,5 +33,8 @@ cask_name = "rollpaper"
 [appstore]
 non_exempt_encryption = false
 
+[plist.usage_descriptions]
+NSPhotoLibraryUsageDescription = "Rollpaper reads photos from the album you choose so it can set them as your desktop wallpaper."
+
 [plist.extras]
 LSUIElement = true   # menu-bar app, no Dock icon

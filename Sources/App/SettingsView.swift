@@ -1,3 +1,4 @@
+import Photos
 import SwiftUI
 
 struct SettingsView: View {
@@ -86,6 +87,11 @@ struct AddFeedView: View {
     @State private var folderBookmark: Data?
     @State private var folderPath: String = ""
 
+    @State private var photosStatus: PHAuthorizationStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+    @State private var photosAlbums: [PhotosLibraryClient.Album] = []
+    @State private var selectedAlbumID: String?
+    @State private var isLoadingAlbums = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Add feed").font(.headline)
@@ -115,6 +121,8 @@ struct AddFeedView: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
+            case .photosLibrary:
+                photosSection
             }
 
             HStack {
@@ -127,14 +135,82 @@ struct AddFeedView: View {
         }
         .padding(20)
         .frame(width: 380)
+        .onChange(of: kind) { _, newKind in
+            if newKind == .photosLibrary { preparePhotos() }
+        }
+    }
+
+    @ViewBuilder
+    private var photosSection: some View {
+        switch photosStatus {
+        case .authorized, .limited:
+            if isLoadingAlbums {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading albums…").font(.caption).foregroundStyle(.secondary)
+                }
+            } else if photosAlbums.isEmpty {
+                Text("No albums with photos were found.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Picker("Album", selection: $selectedAlbumID) {
+                    Text("Choose an album").tag(String?.none)
+                    Section("Smart Albums") {
+                        ForEach(photosAlbums.filter(\.isSmart)) { album in
+                            Text("\(album.title) (\(album.count))").tag(String?.some(album.id))
+                        }
+                    }
+                    Section("My Albums") {
+                        ForEach(photosAlbums.filter { !$0.isSmart }) { album in
+                            Text("\(album.title) (\(album.count))").tag(String?.some(album.id))
+                        }
+                    }
+                }
+                .onChange(of: selectedAlbumID) { _, newID in
+                    if let album = photosAlbums.first(where: { $0.id == newID }),
+                       name.trimmingCharacters(in: .whitespaces).isEmpty {
+                        name = album.title
+                    }
+                }
+            }
+        case .denied, .restricted:
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Rollpaper doesn't have access to your photos.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Button("Open Privacy Settings") {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Photos") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            }
+        default:
+            Button("Allow Access to Photos") { preparePhotos() }
+        }
     }
 
     private var canAdd: Bool {
         switch kind {
         case .localFolder:
             return folderBookmark != nil
+        case .photosLibrary:
+            return selectedAlbumID != nil
         default:
             return !handle.trimmingCharacters(in: .whitespaces).isEmpty
+        }
+    }
+
+    /// Requests Photos access if needed, then loads the album list for the picker.
+    private func preparePhotos() {
+        isLoadingAlbums = true
+        Task {
+            let status = await PhotosLibraryClient.requestAccess()
+            photosStatus = status
+            guard status == .authorized || status == .limited else {
+                isLoadingAlbums = false
+                return
+            }
+            photosAlbums = await PhotosLibraryClient.albums()
+            isLoadingAlbums = false
         }
     }
 
@@ -164,6 +240,11 @@ struct AddFeedView: View {
         case .localFolder:
             let display = trimmedName.isEmpty ? (folderPath as NSString).lastPathComponent : trimmedName
             onAdd(FeedConfig(kind: kind, name: display, handle: folderPath, bookmark: folderBookmark))
+        case .photosLibrary:
+            guard let albumID = selectedAlbumID else { return }
+            let albumTitle = photosAlbums.first(where: { $0.id == albumID })?.title ?? "Photos"
+            let display = trimmedName.isEmpty ? albumTitle : trimmedName
+            onAdd(FeedConfig(kind: kind, name: display, handle: albumID))
         default:
             let trimmedHandle = handle.trimmingCharacters(in: .whitespaces)
             let display = trimmedName.isEmpty ? trimmedHandle : trimmedName

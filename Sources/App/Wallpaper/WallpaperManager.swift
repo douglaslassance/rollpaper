@@ -25,10 +25,29 @@ final class WallpaperManager {
     }
 
     func download(_ remoteURL: URL) async throws -> URL {
+        // A Photos-library item carries no bytes over the network: resolve it
+        // from the local library (or iCloud) instead of URLSession.
+        if remoteURL.scheme == PhotosLibraryClient.scheme {
+            return try await materializePhotosAsset(remoteURL)
+        }
         let (data, response) = try await URLSession.shared.data(from: remoteURL)
         let ext = preferredExtension(for: response, fallbackURL: remoteURL) ?? "jpg"
         let base = baseFilename(for: remoteURL)
         let local = cacheURL.appendingPathComponent("\(base).\(ext)")
+        ensureCacheDirectory()
+        try data.write(to: local, options: .atomic)
+        return local
+    }
+
+    /// Writes the picked Photos asset's full-resolution bytes into the cache and
+    /// returns the file URL, mirroring what `download` does for remote images.
+    private func materializePhotosAsset(_ photosURL: URL) async throws -> URL {
+        guard let identifier = PhotosLibraryClient.assetIdentifier(from: photosURL) else {
+            throw FeedError.invalidConfiguration("This photo reference is invalid.")
+        }
+        let (data, fileExtension) = try await PhotosLibraryClient.loadAssetData(identifier: identifier)
+        let base = identifier.replacingOccurrences(of: "/", with: "_")
+        let local = cacheURL.appendingPathComponent("\(base).\(fileExtension ?? "jpg")")
         ensureCacheDirectory()
         try data.write(to: local, options: .atomic)
         return local

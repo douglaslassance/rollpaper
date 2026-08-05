@@ -22,6 +22,7 @@ enum FeedKind: String, Codable, CaseIterable, Sendable {
     case mastodon
     case reddit
     case localFolder
+    case photosLibrary
 
     var displayName: String {
         switch self {
@@ -29,6 +30,7 @@ enum FeedKind: String, Codable, CaseIterable, Sendable {
         case .mastodon: return "Mastodon"
         case .reddit: return "Reddit"
         case .localFolder: return "Folder"
+        case .photosLibrary: return "Photos"
         }
     }
 }
@@ -39,7 +41,8 @@ struct FeedConfig: Codable, Identifiable, Hashable, Sendable {
     var name: String
     /// For remote feeds this holds the handle/subreddit/feed link. For a local
     /// folder feed it holds the folder path, shown in the subtitle; the actual
-    /// access is granted by `bookmark`.
+    /// access is granted by `bookmark`. For a Photos-library feed it holds the
+    /// chosen album's `PHAssetCollection.localIdentifier`.
     var handle: String
     /// Security-scoped bookmark for `.localFolder` feeds, so the app can re-read
     /// the user-picked folder across launches inside the sandbox. Nil for remote
@@ -70,6 +73,10 @@ struct FeedConfig: Codable, Identifiable, Hashable, Sendable {
             return "Reddit · r/\(handle)"
         case .localFolder:
             return "Folder · \(handle)"
+        case .photosLibrary:
+            // `handle` is an opaque album identifier, so lean on `name` (the
+            // album's title) for a readable subtitle.
+            return "Photos · \(name)"
         }
     }
 
@@ -83,6 +90,8 @@ struct FeedConfig: Codable, Identifiable, Hashable, Sendable {
             return try await RedditClient.fetch(subreddit: handle)
         case .localFolder:
             return try await LocalFolderClient.fetch(bookmark: bookmark)
+        case .photosLibrary:
+            return try await PhotosLibraryClient.fetch(albumIdentifier: handle)
         }
     }
 }
