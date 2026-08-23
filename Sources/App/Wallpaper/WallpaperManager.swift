@@ -53,6 +53,26 @@ final class WallpaperManager {
         return local
     }
 
+    /// Crops `localFile` to the largest attached display's aspect ratio, framed
+    /// on whatever the image is about, returning the cropped file. Best-effort:
+    /// falls back to the original when the image already matches the display or
+    /// nothing is detected, so it never blocks a rotation.
+    ///
+    /// Runs before upscaling so the model's pixel budget is spent on the part
+    /// of the image that actually ends up on screen.
+    func smartCropped(_ localFile: URL) async -> URL {
+        let target = largestScreenPixelSize()
+        let directory = cacheURL
+        ensureCacheDirectory()
+        do {
+            return try await Task.detached(priority: .userInitiated) {
+                try SmartCrop.crop(imageAt: localFile, toAspectOf: target, outputDirectory: directory)
+            }.value
+        } catch {
+            return localFile
+        }
+    }
+
     /// Upscales `localFile` toward the largest attached display's pixel
     /// resolution with the on-device AI model, returning the upscaled file.
     /// Best-effort: falls back to the original when the image already suits the

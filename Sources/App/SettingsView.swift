@@ -18,7 +18,9 @@ struct SettingsView: View {
                     .tabItem { Label("Filtered", systemImage: "line.3.horizontal.decrease.circle") }
             }
         }
-        .frame(width: 520, height: 360)
+        // The General tab's form needs 373pt of content height; the tab bar is
+        // a toolbar and sits outside this frame. Anything under 380 scrolls.
+        .frame(width: 520, height: 400)
     }
 }
 
@@ -370,14 +372,27 @@ struct GeneralSettingsView: View {
             }
 
             Section("Display") {
-                Picker("Fit mode", selection: $appState.fitMode) {
+                Picker("Fit mode", selection: Binding(
+                    get: { appState.fitMode },
+                    set: { mode in
+                        // Leave the selection where it is for a locked mode, so
+                        // the picker doesn't show a mode we won't actually use.
+                        guard !mode.requiresPro || entitlements.hasProAccess else {
+                            PurchaseWindowController.shared.show(entitlementManager: entitlements)
+                            return
+                        }
+                        appState.fitMode = mode
+                        Task { await appState.applyFitModeToCurrent() }
+                    }
+                )) {
                     ForEach(FitMode.allCases, id: \.self) { mode in
                         Text(mode.displayName).tag(mode)
                     }
                 }
-                .onChange(of: appState.fitMode) { _, _ in
-                    appState.applyFitModeToCurrent()
-                }
+                Text(appState.fitMode.summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1, reservesSpace: true)
             }
 
             Section("Upscaling") {
