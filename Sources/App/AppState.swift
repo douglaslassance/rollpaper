@@ -42,12 +42,6 @@ final class AppState: ObservableObject {
     /// MetalFX before setting it. Gated at use-time on `hasProAccess`.
     @AppStorage("upscaleEnabled") var upscaleEnabled: Bool = false
 
-    /// Bumped every time a wallpaper is put on screen. A background upscale
-    /// captures the value it started under and drops its result if it no longer
-    /// matches, so a slow pass can never overwrite a newer wallpaper.
-    private var displayGeneration = 0
-    private var upscaleTask: Task<Void, Never>?
-
     private var rotationTask: Task<Void, Never>?
     /// One-shot retry scheduled after a rotation fails, so recovery doesn't wait
     /// for the next full interval (which can be hours or a day). Cancelled once a
@@ -136,16 +130,11 @@ final class AppState: ObservableObject {
     func showPreviousWallpaper() {
         guard !isRefreshing, let snapshot = history.popLast() else { return }
         do {
-            displayGeneration += 1
             try WallpaperManager.shared.setDesktopImage(snapshot.localFile, fitMode: fitMode)
             currentWallpaper = snapshot.wallpaper
             currentLocalFile = snapshot.localFile
             currentLocalOriginalFile = snapshot.localOriginalFile
             lastError = nil
-            // The snapshot may predate its own upscale, if the wallpaper moved
-            // on before that finished. Cheap to retry: an already-sharp file
-            // fails the "is this worth it" check without running the model.
-            scheduleUpscale(of: snapshot.localFile)
         } catch {
             lastError = error.localizedDescription
         }
@@ -176,8 +165,7 @@ final class AppState: ObservableObject {
                 return false
             }
             let newLocal = try await WallpaperManager.shared.download(pick.imageURL)
-            let fileToSet = await framedFile(from: newLocal)
-            displayGeneration += 1
+            let fileToSet = await preparedFile(from: newLocal)
             try WallpaperManager.shared.setDesktopImage(fileToSet, fitMode: fitMode)
 
             // Push the outgoing wallpaper onto the back-stack before replacing it.
@@ -199,7 +187,6 @@ final class AppState: ObservableObject {
             recordSeen(pick)
 
             pruneCacheForCurrentState()
-            scheduleUpscale(of: fileToSet)
             return false
         } catch {
             lastError = error.localizedDescription
@@ -207,46 +194,25 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// The fast pass, awaited before the wallpaper goes up. Smart cropping costs
-    /// tens of milliseconds, and skipping it would flash the centre-cropped
-    /// framing the mode exists to avoid, so it runs up front. Returns the
-    /// original untouched when the crop doesn't apply.
-    private func framedFile(from original: URL) async -> URL {
-        guard fitMode.preCropsToDisplay, EntitlementManager.shared.hasProAccess else { return original }
-        return await WallpaperManager.shared.smartCropped(original)
-    }
-
-    /// The slow pass, applied after the wallpaper is already up. Upscaling runs
-    /// for seconds, not milliseconds, so waiting on it would leave the desktop
-    /// on the previous wallpaper long after the new one was ready. The framed
-    /// image goes up first and this swaps in the sharper version when it lands,
-    /// which is only ever a resharpen: same image, same framing.
+    /// Runs a download through the display-fitting passes before the wallpaper
+    /// goes up, so it appears once, finished. Cropping first means the
+    /// upscaler's pixel budget goes into the region that ends up on screen
+    /// rather than into parts the crop then throws away.
     ///
-    /// Runs after the crop rather than instead of it, so the model's pixel
-    /// budget goes into the region that ends up on screen instead of into parts
-    /// the crop then throws away.
-    private func scheduleUpscale(of displayed: URL) {
-        upscaleTask?.cancel()
-        guard upscaleEnabled, EntitlementManager.shared.hasProAccess else { return }
-        let generation = displayGeneration
-        upscaleTask = Task { [weak self] in
-            let upscaled = await WallpaperManager.shared.upscaledIfBeneficial(displayed)
-            guard let self, !Task.isCancelled else { return }
-            // The wallpaper moved on while we were working (another rotation, a
-            // step back, a fit-mode change), so this result is for an image
-            // nobody is looking at any more.
-            guard generation == self.displayGeneration else { return }
-            // Nothing to gain: the source already suited the display.
-            guard upscaled != displayed else { return }
-            do {
-                try WallpaperManager.shared.setDesktopImage(upscaled, fitMode: self.fitMode)
-                self.currentLocalFile = upscaled
-                self.pruneCacheForCurrentState()
-            } catch {
-                // The framed image is already on screen and is perfectly usable,
-                // so a failed resharpen isn't worth reporting.
-            }
+    /// Both passes are awaited rather than applied progressively. Setting the
+    /// framed image first and resharpening it a few seconds later reads as a
+    /// glitch when you are watching, which you are for "Next Wallpaper", and it
+    /// doubles how often macOS records a wallpaper file it may later find
+    /// missing. Each pass hands back its input untouched when it doesn't apply.
+    private func preparedFile(from original: URL) async -> URL {
+        var file = original
+        if fitMode.preCropsToDisplay && EntitlementManager.shared.hasProAccess {
+            file = await WallpaperManager.shared.smartCropped(file)
         }
+        if upscaleEnabled && EntitlementManager.shared.hasProAccess {
+            file = await WallpaperManager.shared.upscaledIfBeneficial(file)
+        }
+        return file
     }
 
     /// Re-applies the current wallpaper under the current fit mode. Smart mode
@@ -256,14 +222,12 @@ final class AppState: ObservableObject {
     /// rotation will apply the new mode itself.
     func applyFitModeToCurrent() async {
         guard !isRefreshing, let original = currentLocalOriginalFile else { return }
-        let file = await framedFile(from: original)
+        let file = await preparedFile(from: original)
         do {
-            displayGeneration += 1
             try WallpaperManager.shared.setDesktopImage(file, fitMode: fitMode)
             currentLocalFile = file
             lastError = nil
             pruneCacheForCurrentState()
-            scheduleUpscale(of: file)
         } catch {
             lastError = error.localizedDescription
         }
