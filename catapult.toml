@@ -17,7 +17,7 @@ kind          = "swift"
 arch          = "arm64"
 target_triple = "aarch64-apple-darwin"
 swift_target  = "App"
-icon_command  = "cp assets/Rollpaper.icns build/AppIcon.icns"
+icon_command  = "cp assets/Rollpaper.icns build/AppIcon.icns && cp assets/Assets.car build/Assets.car"
 
 [sparkle]
 feed_url = "https://s3.douglaslassance.me/rollpaper/rollpaper.xml"
@@ -38,3 +38,6 @@ NSPhotoLibraryUsageDescription = "Rollpaper reads photos from the album you choo
 
 [plist.extras]
 LSUIElement = true   # menu-bar app, no Dock icon
+# Points macOS 26 at the adaptive icon in Assets.car, which carries the light,
+# dark and tinted renditions. Older macOS ignores it and uses AppIcon.icns.
+CFBundleIconName = "AppIcon"
