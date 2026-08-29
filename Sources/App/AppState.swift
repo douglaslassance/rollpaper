@@ -427,7 +427,10 @@ final class AppState: ObservableObject {
 
     private static func loadFeeds() -> [FeedConfig] {
         guard let data = UserDefaults.standard.data(forKey: feedsKey) else { return [] }
-        return (try? JSONDecoder().decode([FeedConfig].self, from: data)) ?? []
+        let decoded = (try? JSONDecoder().decode([FeedConfig].self, from: data)) ?? []
+        // Heal handles saved before normalization existed, so a feed that has
+        // been quietly failing starts working again on launch.
+        return decoded.map { $0.normalizedCopy() }
     }
 
     private func persistFeeds() {

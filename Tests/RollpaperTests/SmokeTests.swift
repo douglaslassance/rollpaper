@@ -12,6 +12,52 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(decoded, config)
     }
 
+    func testBlueskyNormalizesBareUsernameToADomainHandle() {
+        // Bluesky handles are domains, so a bare username is rejected by the
+        // API with a 400. This is the mistake that wedged a whole rotation.
+        XCTAssertEqual(BlueskyClient.normalized("jus2poubelle"), "jus2poubelle.bsky.social")
+        XCTAssertEqual(BlueskyClient.normalized("@jus2poubelle"), "jus2poubelle.bsky.social")
+        XCTAssertEqual(BlueskyClient.normalized("  @jus2poubelle  "), "jus2poubelle.bsky.social")
+    }
+
+    func testBlueskyLeavesAlreadyValidReferencesAlone() {
+        XCTAssertEqual(BlueskyClient.normalized("louie.bsky.social"), "louie.bsky.social")
+        XCTAssertEqual(BlueskyClient.normalized("@louie.bsky.social"), "louie.bsky.social")
+        XCTAssertEqual(BlueskyClient.normalized("custom.domain.com"), "custom.domain.com")
+        XCTAssertEqual(BlueskyClient.normalized("did:plc:abc123"), "did:plc:abc123")
+        XCTAssertEqual(BlueskyClient.normalized(""), "")
+    }
+
+    func testBlueskyUnwrapsPastedProfileLinksButKeepsFeedLinks() {
+        XCTAssertEqual(
+            BlueskyClient.normalized("https://bsky.app/profile/louie.bsky.social"),
+            "louie.bsky.social"
+        )
+        // Scheme-less, as copied out of an address bar, plus a trailing slash.
+        XCTAssertEqual(BlueskyClient.normalized("bsky.app/profile/louie/"), "louie.bsky.social")
+
+        let feedLink = "https://bsky.app/profile/louie.bsky.social/feed/art"
+        XCTAssertEqual(BlueskyClient.normalized(feedLink), feedLink)
+        XCTAssertTrue(BlueskyClient.isFeedReference(feedLink))
+        let uri = "at://did:plc:abc/app.bsky.feed.generator/art"
+        XCTAssertEqual(BlueskyClient.normalized(uri), uri)
+    }
+
+    func testFeedConfigHealsABareUsernameAndItsDefaultedName() {
+        let broken = FeedConfig(kind: .bluesky, name: "@jus2poubelle", handle: "@jus2poubelle")
+        let healed = broken.normalizedCopy()
+        XCTAssertEqual(healed.handle, "jus2poubelle.bsky.social")
+        XCTAssertEqual(healed.name, "jus2poubelle.bsky.social")
+
+        // A name the user chose is theirs, and stays put.
+        let named = FeedConfig(kind: .bluesky, name: "Laurent Gillot", handle: "@jus2poubelle")
+        XCTAssertEqual(named.normalizedCopy().name, "Laurent Gillot")
+
+        // Other kinds are untouched: a subreddit is not a domain.
+        let reddit = FeedConfig(kind: .reddit, name: "Wallpapers", handle: "wallpapers")
+        XCTAssertEqual(reddit.normalizedCopy(), reddit)
+    }
+
     /// Exercises the real bundled model end to end: Bundle.module load, tiling,
     /// downscale, and JPEG encode.
     func testCoreMLUpscaleProducesCoveringImage() throws {

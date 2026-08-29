@@ -1,6 +1,29 @@
 import Foundation
 
 enum BlueskyClient {
+    /// Rewrites what someone actually typed into something the API accepts, so a
+    /// small input mistake doesn't leave a feed failing forever. Handles
+    /// surrounding whitespace, a leading "@", a pasted profile link, and the
+    /// most common mistake of all: a bare username. Bluesky handles are domains,
+    /// so "louie" is not a valid identifier and has to become
+    /// "louie.bsky.social". Feed references (AT-URIs and bsky.app feed links)
+    /// pass through untouched for `fetchFeed` to parse.
+    static func normalized(_ reference: String) -> String {
+        var value = reference.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return value }
+        if value.hasPrefix("at://") || parseFeedLink(value) != nil { return value }
+
+        if let handle = parseProfileLink(value) { value = handle }
+        if value.hasPrefix("@") { value = String(value.dropFirst()) }
+        while value.hasSuffix("/") { value.removeLast() }
+
+        // A DID is already an identifier, and anything with a dot is already a
+        // domain (bsky.social or a custom one). Only a bare name needs the
+        // default host appended.
+        guard !value.isEmpty, !value.hasPrefix("did:"), !value.contains(".") else { return value }
+        return value + ".bsky.social"
+    }
+
     /// True when `reference` identifies a custom feed (an AT-URI or a bsky.app feed link)
     /// rather than a plain account handle/DID.
     static func isFeedReference(_ reference: String) -> Bool {
@@ -11,7 +34,7 @@ enum BlueskyClient {
     /// Fetches an account's posts or a custom feed, auto-detected from `reference`:
     /// a handle/DID (optionally "@"-prefixed), an AT-URI, or a bsky.app feed link.
     static func fetch(_ reference: String) async throws -> [WallpaperItem] {
-        let trimmed = reference.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = normalized(reference)
         guard !trimmed.isEmpty else {
             throw FeedError.invalidConfiguration("Bluesky handle or feed link is empty")
         }
@@ -20,7 +43,7 @@ enum BlueskyClient {
             return try await fetchFeed(trimmed)
         }
 
-        let actor = trimmed.hasPrefix("@") ? String(trimmed.dropFirst()) : trimmed
+        let actor = trimmed
         var components = URLComponents(string: "https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed")!
         components.queryItems = [
             URLQueryItem(name: "actor", value: actor),
@@ -58,10 +81,27 @@ enum BlueskyClient {
     }
 
     private static func parseFeedLink(_ string: String) -> (actor: String, feedName: String)? {
-        guard let url = URL(string: string), url.host == "bsky.app" else { return nil }
+        guard let url = bskyAppURL(string) else { return nil }
         let parts = url.pathComponents.filter { $0 != "/" }
         guard parts.count >= 4, parts[0] == "profile", parts[2] == "feed" else { return nil }
         return (actor: parts[1], feedName: parts[3])
+    }
+
+    /// The handle out of a pasted profile link, e.g.
+    /// https://bsky.app/profile/louie.bsky.social.
+    private static func parseProfileLink(_ string: String) -> String? {
+        guard let url = bskyAppURL(string) else { return nil }
+        let parts = url.pathComponents.filter { $0 != "/" }
+        guard parts.count >= 2, parts[0] == "profile" else { return nil }
+        return parts[1]
+    }
+
+    /// Parses a bsky.app link with or without its scheme, since copying one out
+    /// of a browser's address bar often drops the "https://".
+    private static func bskyAppURL(_ string: String) -> URL? {
+        let candidate = string.contains("://") ? string : "https://" + string
+        guard let url = URL(string: candidate), url.host == "bsky.app" else { return nil }
+        return url
     }
 
     private static func resolveDID(for actor: String) async throws -> String {

@@ -80,6 +80,21 @@ struct FeedConfig: Codable, Identifiable, Hashable, Sendable {
         }
     }
 
+    /// Cleaned-up copy of this config, so a handle saved by an older build (or
+    /// typed with a stray "@", a pasted profile link, or as a bare username) is
+    /// both stored and displayed in the form the API accepts.
+    func normalizedCopy() -> FeedConfig {
+        guard kind == .bluesky else { return self }
+        let cleaned = BlueskyClient.normalized(handle)
+        guard cleaned != handle else { return self }
+        var copy = self
+        copy.handle = cleaned
+        // The name defaults to the handle when the user leaves it blank, so it
+        // has to follow the correction rather than keep showing the old text.
+        if name == handle { copy.name = cleaned }
+        return copy
+    }
+
     func fetch() async throws -> [WallpaperItem] {
         switch kind {
         case .bluesky:
