@@ -148,15 +148,24 @@ final class AppState: ObservableObject {
     private func performRotation() async -> Bool {
         do {
             var items: [WallpaperItem] = []
+            var failures: [String] = []
             for feed in feeds {
-                let fetched = try await feed.fetch()
-                items.append(contentsOf: fetched)
+                do {
+                    items.append(contentsOf: try await feed.fetch())
+                } catch {
+                    failures.append("\(feed.name) (\(error.localizedDescription))")
+                }
             }
             let fetchedCount = items.count
             items.removeAll { filteredURLs.contains($0.imageURL.absoluteString) }
             guard let pick = pickWeighted(items) else {
                 if feeds.isEmpty {
                     lastError = "No feeds configured"
+                } else if !failures.isEmpty {
+                    lastError = failedFeedsMessage(failures)
+                    // Every feed that could have contributed failed, so this is
+                    // worth retrying sooner than the next interval.
+                    return true
                 } else if fetchedCount > 0 {
                     lastError = "All current feed items are filtered out"
                 } else {
@@ -183,7 +192,9 @@ final class AppState: ObservableObject {
             currentWallpaper = pick
             currentLocalFile = fileToSet
             currentLocalOriginalFile = newLocal
-            lastError = nil
+            // A rotation that worked off the healthy feeds still surfaces the
+            // broken ones, otherwise a misconfigured feed stays invisible.
+            lastError = failures.isEmpty ? nil : failedFeedsMessage(failures)
             recordSeen(pick)
 
             pruneCacheForCurrentState()
@@ -192,6 +203,14 @@ final class AppState: ObservableObject {
             lastError = error.localizedDescription
             return true
         }
+    }
+
+    /// One line naming the feeds that failed to fetch, shown in Settings. A
+    /// single unreachable or misconfigured feed no longer stops the rotation,
+    /// so this is how the user finds out one needs attention.
+    private func failedFeedsMessage(_ failures: [String]) -> String {
+        let label = failures.count == 1 ? "Feed failed" : "Feeds failed"
+        return "\(label): " + failures.joined(separator: ", ")
     }
 
     /// Runs a download through the display-fitting passes before the wallpaper
