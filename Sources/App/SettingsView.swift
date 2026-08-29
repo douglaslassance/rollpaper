@@ -29,6 +29,8 @@ struct FeedsSettingsView: View {
     @ObservedObject private var entitlements = EntitlementManager.shared
     @State private var selection: FeedConfig.ID?
     @State private var showAddSheet = false
+    /// The feed being edited, driving the editor sheet. Nil when not editing.
+    @State private var editingFeed: FeedConfig?
 
     private var atFreeLimit: Bool {
         !entitlements.hasProAccess && appState.feeds.count >= AppLimits.freeMaxFeeds
@@ -43,6 +45,13 @@ struct FeedsSettingsView: View {
                         Text(feed.subtitle).font(.caption).foregroundStyle(.secondary)
                     }
                     .tag(feed.id)
+                    // The row's own background doesn't fill the width, so the
+                    // shape is what makes the whole row double-clickable.
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) { editingFeed = feed }
+                    .contextMenu {
+                        Button("Edit…") { editingFeed = feed }
+                    }
                 }
             }
             Divider()
@@ -66,37 +75,76 @@ struct FeedsSettingsView: View {
                     Image(systemName: "minus")
                 }
                 .disabled(selection == nil)
+                Button {
+                    editingFeed = appState.feeds.first { $0.id == selection }
+                } label: {
+                    Image(systemName: "pencil")
+                }
+                .disabled(selection == nil)
+                .help("Edit the selected feed")
                 Spacer()
             }
             .padding(8)
             .buttonStyle(.borderless)
         }
         .sheet(isPresented: $showAddSheet) {
-            AddFeedView { newFeed in
+            FeedEditorView { newFeed in
                 appState.feeds.append(newFeed)
+            }
+        }
+        .sheet(item: $editingFeed) { feed in
+            FeedEditorView(existing: feed) { updated in
+                guard let idx = appState.feeds.firstIndex(where: { $0.id == updated.id }) else { return }
+                appState.feeds[idx] = updated
             }
         }
     }
 }
 
-struct AddFeedView: View {
-    let onAdd: (FeedConfig) -> Void
+/// Adds a new feed, or edits an existing one when `existing` is set. Editing
+/// reuses the same form (and the same id) so a mistyped handle can be corrected
+/// in place instead of being deleted and re-added.
+struct FeedEditorView: View {
+    let existing: FeedConfig?
+    let onSave: (FeedConfig) -> Void
     @Environment(\.dismiss) private var dismiss
 
-    @State private var kind: FeedKind = .bluesky
-    @State private var name: String = ""
-    @State private var handle: String = ""
+    @State private var kind: FeedKind
+    @State private var name: String
+    @State private var handle: String
     @State private var folderBookmark: Data?
-    @State private var folderPath: String = ""
+    @State private var folderPath: String
 
     @State private var photosStatus: PHAuthorizationStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
     @State private var photosAlbums: [PhotosLibraryClient.Album] = []
     @State private var selectedAlbumID: String?
     @State private var isLoadingAlbums = false
 
+    init(existing: FeedConfig? = nil, onSave: @escaping (FeedConfig) -> Void) {
+        self.existing = existing
+        self.onSave = onSave
+        // `handle` carries a different thing per kind (a handle, a folder path,
+        // an album id), so each kind seeds the field that actually shows it.
+        _kind = State(initialValue: existing?.kind ?? .bluesky)
+        _name = State(initialValue: existing?.name ?? "")
+        _folderBookmark = State(initialValue: existing?.bookmark)
+        switch existing?.kind {
+        case .localFolder:
+            _handle = State(initialValue: "")
+            _folderPath = State(initialValue: existing?.handle ?? "")
+        case .photosLibrary:
+            _handle = State(initialValue: "")
+            _folderPath = State(initialValue: "")
+            _selectedAlbumID = State(initialValue: existing?.handle)
+        default:
+            _handle = State(initialValue: existing?.handle ?? "")
+            _folderPath = State(initialValue: "")
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Add feed").font(.headline)
+            Text(existing == nil ? "Add feed" : "Edit feed").font(.headline)
 
             Picker("Source", selection: $kind) {
                 ForEach(FeedKind.allCases, id: \.self) { kind in
@@ -130,15 +178,20 @@ struct AddFeedView: View {
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }
-                Button("Add") { add() }
+                Button(existing == nil ? "Add" : "Save") { save() }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(!canAdd)
+                    .disabled(!canSave)
             }
         }
         .padding(20)
         .frame(width: 380)
         .onChange(of: kind) { _, newKind in
             if newKind == .photosLibrary { preparePhotos() }
+        }
+        .onAppear {
+            // Editing a Photos feed opens straight onto the picker, which needs
+            // the album list the `kind` change would otherwise have loaded.
+            if kind == .photosLibrary { preparePhotos() }
         }
     }
 
@@ -190,7 +243,7 @@ struct AddFeedView: View {
         }
     }
 
-    private var canAdd: Bool {
+    private var canSave: Bool {
         switch kind {
         case .localFolder:
             return folderBookmark != nil
@@ -236,21 +289,26 @@ struct AddFeedView: View {
         }
     }
 
-    private func add() {
+    private func save() {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        // Editing keeps the feed's id, so it stays in place in the list and
+        // keeps whatever the rest of the app has keyed to it.
+        let id = existing?.id ?? UUID()
         switch kind {
         case .localFolder:
             let display = trimmedName.isEmpty ? (folderPath as NSString).lastPathComponent : trimmedName
-            onAdd(FeedConfig(kind: kind, name: display, handle: folderPath, bookmark: folderBookmark))
+            onSave(FeedConfig(id: id, kind: kind, name: display, handle: folderPath, bookmark: folderBookmark))
         case .photosLibrary:
             guard let albumID = selectedAlbumID else { return }
             let albumTitle = photosAlbums.first(where: { $0.id == albumID })?.title ?? "Photos"
             let display = trimmedName.isEmpty ? albumTitle : trimmedName
-            onAdd(FeedConfig(kind: kind, name: display, handle: albumID))
+            onSave(FeedConfig(id: id, kind: kind, name: display, handle: albumID))
         default:
-            let trimmedHandle = handle.trimmingCharacters(in: .whitespaces)
-            let display = trimmedName.isEmpty ? trimmedHandle : trimmedName
-            onAdd(FeedConfig(kind: kind, name: display, handle: trimmedHandle))
+            let cleanedHandle = kind == .bluesky
+                ? BlueskyClient.normalized(handle)
+                : handle.trimmingCharacters(in: .whitespaces)
+            let display = trimmedName.isEmpty ? cleanedHandle : trimmedName
+            onSave(FeedConfig(id: id, kind: kind, name: display, handle: cleanedHandle))
         }
         dismiss()
     }
